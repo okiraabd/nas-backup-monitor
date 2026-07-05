@@ -1,0 +1,119 @@
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { Server } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+
+import { Button } from "@/components/ui/button";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
+
+const formSchema = z.object({
+  username: z.string().min(1, "Username is required"),
+  password: z.string().min(1, "Password is required"),
+});
+
+export function Login() {
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
+  const { login } = useAuth();
+
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      username: "",
+      password: "",
+    },
+  });
+
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    try {
+      setIsLoading(true);
+      setError("");
+      
+      const response = await api.post("/auth/login", values);
+      
+      const { access_token, user } = response.data;
+      login(access_token, user);
+      
+      navigate("/dashboard");
+    } catch (err: any) {
+      if (err.response?.status === 401) {
+        setError("Invalid username or password");
+      } else {
+        setError("Failed to connect to the server");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  return (
+    <div className="flex h-screen w-full items-center justify-center bg-muted/40 p-4">
+      <Card className="w-full max-w-md shadow-lg border-primary/20">
+        <CardHeader className="space-y-2 text-center pb-8">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+            <Server className="h-8 w-8 text-primary" />
+          </div>
+          <CardTitle className="text-3xl font-bold tracking-tight">Backup Monitor</CardTitle>
+          <CardDescription>
+            Enter your credentials to access the dashboard
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              {error && (
+                <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive font-medium text-center">
+                  {error}
+                </div>
+              )}
+              
+              <FormField
+                control={form.control}
+                name="username"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Username</FormLabel>
+                    <FormControl>
+                      <Input placeholder="admin" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Password</FormLabel>
+                    <FormControl>
+                      <Input type="password" placeholder="••••••••" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
+                {isLoading ? "Signing in..." : "Sign in"}
+              </Button>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

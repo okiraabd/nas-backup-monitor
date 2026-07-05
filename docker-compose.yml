@@ -1,0 +1,83 @@
+# Backup Monitor — Docker Compose
+# Stage 1: postgres + api. (web-dashboard service added in a later stage.)
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: bm_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-backup_monitor}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-backup_monitor_pw}
+      POSTGRES_DB: ${POSTGRES_DB:-backup_monitor}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      # Host port is configurable to avoid clashes with a local Postgres.
+      # Container-internal port stays 5432 (used by the api service).
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-backup_monitor}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: ./api
+    container_name: bm_api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://backup_monitor:backup_monitor_pw@postgres:5432/backup_monitor}
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev-secret-change-me}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-60}
+      JWT_ISSUER: ${JWT_ISSUER:-backup-monitor-api}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-backup-monitor-clients}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:80}
+      AUTO_SEED: ${AUTO_SEED:-true}
+      REPORTS_DIR: ${REPORTS_DIR:-/app/generated_reports}
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+    volumes:
+      - reports:/app/generated_reports
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web-dashboard:
+    build: ./web-dashboard
+    container_name: bm_web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "80:80"
+
+  collector:
+    build: ./collector
+    container_name: bm_collector
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      API_URL: http://api:8000/api
+      COLLECTOR_USERNAME: ${COLLECTOR_USERNAME:-collector}
+      COLLECTOR_PASSWORD: ${COLLECTOR_PASSWORD:-collector123}
+      COLLECTOR_INTERVAL_SECONDS: ${COLLECTOR_INTERVAL_SECONDS:-60}
+      USE_MOCK_METRICS: ${USE_MOCK_METRICS:-false}
+      NAS_TARGETS: ${NAS_TARGETS:-synology-ds1522:192.168.24.5,wd-pr4100:192.168.24.4}
+      CEPH_METRICS_URL: ${CEPH_METRICS_URL:-http://192.168.24.6:9283/metrics}
+
+volumes:
+  pgdata:
+  reports:

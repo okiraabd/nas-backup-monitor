@@ -1,0 +1,79 @@
+# =========================
+# OS & Editor
+# =========================
+.DS_Store
+.AppleDouble
+.LSOverride
+*~
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# =========================
+# Environment Variables
+# =========================
+.env
+.env.*
+!.env.example
+!.env.production
+
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+venv/
+.venv/
+env/
+.env/
+ENV/
+
+# Pytest / Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.coverage.*
+coverage.xml
+
+# =========================
+# Node & Web Dashboard
+# =========================
+node_modules/
+dist-ssr/
+.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# =========================
+# Project Specific
+# =========================
+api/generated_reports/
+*.pdf
+
