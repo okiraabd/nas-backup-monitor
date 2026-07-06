@@ -4,11 +4,16 @@
 .DS_Store
 .AppleDouble
 .LSOverride
+Thumbs.db
+Desktop.ini
 *~
 *.swp
 *.swo
+*.bak
+*.tmp
 .vscode/
 .idea/
+*.iml
 
 # =========================
 # Environment Variables
@@ -16,7 +21,6 @@
 .env
 .env.*
 !.env.example
-!.env.production
 
 # =========================
 # Python
@@ -26,7 +30,6 @@ __pycache__/
 *$py.class
 *.so
 .Python
-env/
 build/
 develop-eggs/
 dist/
@@ -44,12 +47,13 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+pip-log.txt
+pip-delete-this-directory.txt
 
 # Virtual Environments
 venv/
 .venv/
 env/
-.env/
 ENV/
 
 # Pytest / Coverage
@@ -60,20 +64,57 @@ htmlcov/
 .nox/
 .coverage.*
 coverage.xml
+*.cover
+*.py,cover
+
+# Mypy / Type Checkers
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pytype/
 
 # =========================
 # Node & Web Dashboard
 # =========================
 node_modules/
+dist/
 dist-ssr/
 .vite/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+.eslintcache
+*.tsbuildinfo
 
 # =========================
-# Project Specific
+# Docker
+# =========================
+docker-compose.override.yml
+docker-compose.override.yaml
+
+# =========================
+# Generated / Runtime Files
 # =========================
 api/generated_reports/
 *.pdf
+*.log
 
+# NAS script pending queue (runtime data)
+nas-scripts/pending/*.json
+
+# =========================
+# Security - NEVER commit
+# =========================
+*.pem
+*.key
+*.cert
+*.p12
+*.jks
+*.keystore
+
+# =========================
+# Misc
+# =========================
+.gemini/
+test_auth.py
