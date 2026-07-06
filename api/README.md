@@ -51,11 +51,11 @@ an exam-style Q&A defending each design choice.
 - `POST  /api/logs/ingest` — NAS submits a Kopia result. Role: **service** only.
   `status` accepts `SUCCESS`/`FAILED` (case-insensitive), invalid → `422`.
   `raw_payload` stored as JSONB, `reported_by` taken from the JWT.
-- `GET   /api/logs` — paginated list. Role: **admin**. Filters: `nas_id`,
+- `GET   /api/logs` — paginated list. Role: **admin/operator**. Filters: `nas_id`,
   `status`, `job_name`, `date_from`, `date_to`, `acknowledged`, `page`, `page_size`.
-- `GET   /api/logs/{log_id}` — full detail incl. raw payload. Role: **admin**.
+- `GET   /api/logs/{log_id}` — full detail incl. raw payload. Role: **admin/operator**.
 - `PATCH /api/logs/{log_id}/acknowledge` — mark a FAILED log reviewed with a
-  `remark`. Role: **admin**. Non-FAILED → `400`.
+  `remark`. Role: **admin/operator**. Non-FAILED → `400`.
 
 ## Monitoring
 - `POST /api/monitor/ingest` — collector submits a metric batch. Role:
@@ -65,8 +65,8 @@ an exam-style Q&A defending each design choice.
 - `GET  /api/monitor/nas` / `GET /api/monitor/nas/{nas_id}` — latest snapshot(s).
 - `GET  /api/monitor/nas/{nas_id}/history?metric=cpu_usage` — metric history.
 - `GET  /api/monitor/ceph` / `GET /api/monitor/ceph/history?metric=storage_used_pct`.
-- `GET  /api/monitor/collector/status` — last collector run (admin or collector).
-- `POST /api/monitor/collector/run-once` — record a manual trigger. Role: admin.
+- `GET  /api/monitor/collector/status` — last collector run (admin, operator, or collector).
+- `POST /api/monitor/collector/run-once` — record a manual trigger. Role: admin/operator.
 
 **Freshness is computed by the API**, never the client:
 `fresh` ≤ 90 s, `stale` ≤ 300 s, `offline` > 300 s or no data.

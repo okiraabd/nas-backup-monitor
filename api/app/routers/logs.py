@@ -79,7 +79,7 @@ def list_logs(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
 ) -> PaginatedLogs:
-    """List backup logs with filters + pagination. Role: admin only."""
+    """List backup logs with filters + pagination. Role: admin/operator."""
     conditions = []
     if nas_id:
         conditions.append(BackupLog.nas_id == nas_id)
@@ -121,7 +121,7 @@ def get_log(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_operator_or_admin),
 ) -> LogDetail:
-    """Get a single backup log's full detail. Role: admin only."""
+    """Get a single backup log's full detail. Role: admin/operator."""
     log = db.get(BackupLog, log_id)
     if log is None:
         raise HTTPException(status_code=404, detail="Log not found")
@@ -135,7 +135,7 @@ def acknowledge_log(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_operator_or_admin),
 ) -> LogDetail:
-    """Acknowledge a FAILED backup log with a remark. Role: admin only."""
+    """Acknowledge a FAILED backup log with a remark. Role: admin/operator."""
     log = db.get(BackupLog, log_id)
     if log is None:
         raise HTTPException(status_code=404, detail="Log not found")

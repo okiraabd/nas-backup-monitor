@@ -36,6 +36,30 @@ class TestProtectedEndpoints:
         assert resp.status_code == 401
 
 
+class TestCors:
+    def test_configured_origin_is_allowed(self, client):
+        resp = client.options(
+            "/health",
+            headers={
+                "Origin": "http://localhost:5173",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        assert resp.status_code == 200
+        assert resp.headers["access-control-allow-origin"] == "http://localhost:5173"
+
+    def test_unknown_origin_is_rejected(self, client):
+        resp = client.options(
+            "/health",
+            headers={
+                "Origin": "https://untrusted.example",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        assert resp.status_code == 400
+        assert "access-control-allow-origin" not in resp.headers
+
+
 class TestLogout:
     def test_logout_revokes_token(self, client):
         # Login to get a fresh token

@@ -29,6 +29,7 @@ export function BackupLogs() {
   const [jobName, setJobName] = useState("");
   const [dateFilter, setDateFilter] = useState(initialDate);
   const pageSize = 10;
+  const dateFromUrl = searchParams.get("date") || "";
 
   const { data: nasList } = useQuery({
     queryKey: ["nas-list"],
@@ -40,9 +41,8 @@ export function BackupLogs() {
 
   useEffect(() => {
     // If URL changes from outside, update state
-    const d = searchParams.get("date") || "";
-    if (d !== dateFilter) setDateFilter(d);
-  }, [searchParams]);
+    setDateFilter(dateFromUrl);
+  }, [dateFromUrl]);
 
   const clearDateFilter = () => {
     setDateFilter("");

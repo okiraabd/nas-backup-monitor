@@ -71,7 +71,7 @@ def summary(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_operator_or_admin),
 ) -> MonitorSummary:
-    """Aggregate NAS freshness counts + Ceph health. Role: admin only."""
+    """Aggregate NAS freshness counts + Ceph health. Role: admin/operator."""
     nas_ids = svc.list_source_ids(db, SOURCE_NAS)
     counts = {svc.STATUS_FRESH: 0, svc.STATUS_STALE: 0, svc.STATUS_OFFLINE: 0}
     for sid in nas_ids:
@@ -140,7 +140,7 @@ def list_nas(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_operator_or_admin),
 ) -> NasListResponse:
-    """List all NAS sources with latest snapshot + freshness. Role: admin."""
+    """List all NAS sources with latest snapshot + freshness. Role: admin/operator."""
     snaps = []
     for sid in svc.list_source_ids(db, SOURCE_NAS):
         snap = svc.latest_snapshot(db, SOURCE_NAS, sid)
@@ -155,7 +155,7 @@ def get_nas(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_operator_or_admin),
 ) -> SourceSnapshot:
-    """Latest snapshot for one NAS. Role: admin."""
+    """Latest snapshot for one NAS. Role: admin/operator."""
     snap = svc.latest_snapshot(db, SOURCE_NAS, nas_id)
     if snap is None:
         raise HTTPException(status_code=404, detail="NAS source not found")
@@ -170,7 +170,7 @@ def get_nas_history(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_operator_or_admin),
 ) -> MetricHistory:
-    """History of one metric for one NAS. Role: admin."""
+    """History of one metric for one NAS. Role: admin/operator."""
     points = svc.metric_history(db, SOURCE_NAS, nas_id, metric, limit)
     return MetricHistory(source_id=nas_id, metric_name=metric, points=points)
 
@@ -181,7 +181,7 @@ def get_ceph(
     current_user: User = Depends(require_operator_or_admin),
     source_id: str = Query("ceph-cluster"),
 ) -> SourceSnapshot:
-    """Latest snapshot for the Ceph cluster. Role: admin."""
+    """Latest snapshot for the Ceph cluster. Role: admin/operator."""
     snap = svc.latest_snapshot(db, SOURCE_CEPH, source_id)
     if snap is None:
         raise HTTPException(status_code=404, detail="Ceph source not found")
@@ -196,7 +196,7 @@ def get_ceph_history(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_operator_or_admin),
 ) -> MetricHistory:
-    """History of one metric for the Ceph cluster. Role: admin."""
+    """History of one metric for the Ceph cluster. Role: admin/operator."""
     points = svc.metric_history(db, SOURCE_CEPH, source_id, metric, limit)
     return MetricHistory(source_id=source_id, metric_name=metric, points=points)
 
@@ -206,7 +206,7 @@ def collector_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin_operator_or_collector),
 ) -> CollectorStatus:
-    """Most recent collector run status. Role: admin or collector."""
+    """Most recent collector run status. Role: admin/operator/collector."""
     run = db.scalar(select(CollectorRun).order_by(CollectorRun.created_at.desc()))
     if run is None:
         return CollectorStatus()
@@ -226,7 +226,7 @@ def collector_run_once(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_operator_or_admin),
 ) -> CollectorStatus:
-    """Record a manual collector trigger request. Role: admin.
+    """Record a manual collector trigger request. Role: admin/operator.
 
     In this stage the collector runs as a separate process; this endpoint
     records the intent as a RUNNING collector_run so the dashboard can reflect

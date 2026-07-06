@@ -52,7 +52,7 @@ def _seed(db):
                   metric_name="cpu_usage", metric_value=25, unit="%",
                   collected_by=users["collector"].id))
     db.add(CollectorRun(started_at=now - timedelta(seconds=3), finished_at=now,
-                        status="SUCCESS", mode="demo", message="ok",
+                        status="SUCCESS", is_mock=True, message="ok",
                         total_sources=3, success_sources=3, failed_sources=0))
     db.commit()
 

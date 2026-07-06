@@ -37,7 +37,7 @@ services:
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-60}
       JWT_ISSUER: ${JWT_ISSUER:-backup-monitor-api}
       JWT_AUDIENCE: ${JWT_AUDIENCE:-backup-monitor-clients}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:80}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost,http://localhost:5173}
       AUTO_SEED: ${AUTO_SEED:-true}
       REPORTS_DIR: ${REPORTS_DIR:-/app/generated_reports}
       API_HOST: 0.0.0.0

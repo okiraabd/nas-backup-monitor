@@ -81,14 +81,14 @@ Seluruh komponen saling terhubung melalui satu titik pusat (REST API):
 ### Frontend (Web Dashboard)
 | Komponen | Teknologi |
 |----------|-----------|
-| Framework | React 18 + TypeScript |
+| Framework | React 19 + TypeScript |
 | Build Tool | Vite |
 | UI Library | Shadcn/UI + Radix UI |
 | Styling | TailwindCSS |
 | Charts | Recharts |
 | HTTP Client | Axios |
 | State | TanStack Query (React Query) |
-| Routing | React Router v6 |
+| Routing | React Router v7 |
 
 ### Infrastructure
 | Komponen | Teknologi |
@@ -217,7 +217,7 @@ Konfigurasi utama melalui file `.env` di root project:
 | `JWT_ALGORITHM` | `HS256` | Algoritma signing JWT |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `60` | Masa berlaku token (menit) |
 | `AUTO_SEED` | `true` | Otomatis isi data demo saat pertama kali start |
-| `CORS_ORIGINS` | `http://localhost:5173,...` | Allowed CORS origins |
+| `CORS_ORIGINS` | `http://localhost:5173,...` | Daftar origin yang diizinkan mengakses API |
 | `COLLECTOR_INTERVAL_SECONDS` | `60` | Interval polling metrik (detik) |
 | `USE_MOCK_METRICS` | `false` | Gunakan data simulasi (tanpa SNMP/Ceph asli) |
 | `NAS_TARGETS` | `synology:ip,wd:ip` | Daftar NAS yang dipantau (format: `id:ip`) |
@@ -274,16 +274,16 @@ Semua endpoint berada di bawah prefix `/api`. Dokumentasi interaktif tersedia di
 |--------|----------|-----------|------|
 | `GET` | `/api/logs` | Daftar log backup (dengan query filter) | Bearer |
 | `GET` | `/api/logs/{id}` | Detail satu log | Bearer |
-| `POST` | `/api/logs` | Kirim log baru (dari NAS script) | Service |
+| `POST` | `/api/logs/ingest` | Kirim log baru (dari NAS script) | Service |
 | `PATCH` | `/api/logs/{id}/acknowledge` | Acknowledge backup gagal | Admin/Operator |
 
 ### Monitoring
 | Method | Endpoint | Deskripsi | Auth |
 |--------|----------|-----------|------|
 | `GET` | `/api/monitor/nas` | Daftar NAS ID yang terdaftar | Bearer |
-| `GET` | `/api/monitor/nas/{source_id}/latest` | Metrik terbaru NAS tertentu | Bearer |
-| `GET` | `/api/monitor/ceph/latest` | Metrik terbaru Ceph | Bearer |
-| `POST` | `/api/monitor/push` | Push metrik dari collector | Collector |
+| `GET` | `/api/monitor/nas/{source_id}` | Metrik terbaru NAS tertentu | Admin/Operator |
+| `GET` | `/api/monitor/ceph` | Metrik terbaru Ceph | Admin/Operator |
+| `POST` | `/api/monitor/ingest` | Push metrik dari collector | Collector |
 
 ### Reports
 | Method | Endpoint | Deskripsi | Auth |
@@ -298,7 +298,7 @@ Semua endpoint berada di bawah prefix `/api`. Dokumentasi interaktif tersedia di
 |--------|----------|-----------|------|
 | `GET` | `/api/users` | Daftar semua user | Admin |
 | `POST` | `/api/users` | Buat user baru | Admin |
-| `PUT` | `/api/users/{id}` | Update user | Admin |
+| `PATCH` | `/api/users/{id}` | Update user | Admin |
 | `DELETE` | `/api/users/{id}` | Disable user | Admin |
 | `POST` | `/api/users/{id}/rotate-token` | Generate password baru | Admin |
 

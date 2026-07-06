@@ -21,7 +21,7 @@ def list_reports(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_operator_or_admin),
 ) -> list[Report]:
-    """List generated reports (newest first). Role: admin."""
+    """List generated reports (newest first). Role: admin/operator."""
     return db.scalars(select(Report).order_by(Report.generated_at.desc())).all()
 
 
@@ -31,7 +31,7 @@ def generate(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_operator_or_admin),
 ) -> Report:
-    """Generate a PDF report for the given period. Role: admin."""
+    """Generate a PDF report for the given period. Role: admin/operator."""
     return generate_report(
         db,
         date_from=payload.date_from,
@@ -48,7 +48,7 @@ def download_report(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_operator_or_admin),
 ) -> FileResponse:
-    """Download a report's PDF file. Role: admin."""
+    """Download a report's PDF file. Role: admin/operator."""
     report = db.get(Report, report_id)
     if report is None:
         raise HTTPException(status_code=404, detail="Report not found")

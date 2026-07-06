@@ -6,7 +6,7 @@ Collector ini bertugas untuk menyuntikkan (POST) berbagai metrik tersebut secara
 
 ## 🛠️ Stack Teknologi
 - **Bahasa**: Python 3.12
-- **Dependensi Utama**: `requests` (untuk komunikasi HTTP ke API), `python-dotenv`.
+- **Dependensi Utama**: `httpx` (untuk komunikasi HTTP), `python-dotenv`.
 
 ## ⚙️ Cara Kerja
 Saat daemon dinyalakan, sistem akan terus melakukan putaran (*loop*) setiap `COLLECTOR_INTERVAL_SECONDS` (contoh: setiap 60 detik). Pada setiap siklus, ia akan:
@@ -16,13 +16,15 @@ Saat daemon dinyalakan, sistem akan terus melakukan putaran (*loop*) setiap `COL
 4. Mengirim (`POST`) muatan tersebut ke endpoint.
 
 ## 🚀 Mode Operasi
-Terdapat *environment variable* `COLLECTOR_MODE` di dalam `.env` yang bisa diatur:
+Mode collector diatur melalui *environment variable* `USE_MOCK_METRICS`:
 
-1. **`demo` (Default)**
+1. **`USE_MOCK_METRICS=true`**
    Men-generate nilai *dummy/acak* yang fluktuatif namun tampak realistis. Sangat berguna untuk pengujian UI Dashboard, mempresentasikan laporan, atau *demo* aplikasi. Modul SNMP maupun *HTTP request* asli ke Ceph *manager* dinonaktifkan.
 
-2. **`real` / `hybrid` (Siap Diimplementasi)**
-   Struktur kelas (`snmp_collector.py` dan `ceph_collector.py`) sudah dipersiapkan sebagai blok penyusun (*stubs*). Anda cukup mengganti logika pembacaannya dengan *library* pembaca metrik yang riil (contohnya `pysnmp` atau pemanggilan HTTP API asli Ceph).
+2. **`USE_MOCK_METRICS=false` (default)**
+   Collector membaca endpoint Prometheus SNMP Exporter NAS di port `9116` dan endpoint Prometheus Ceph Manager dari `CEPH_METRICS_URL`. Collector tidak melakukan query SNMP langsung ke perangkat.
+
+> Metrik IOPS Ceph pada mode nyata saat ini bernilai `0` karena perhitungan laju membutuhkan selisih counter antar-sampel.
 
 ## 💻 Panduan Menjalankan (Lokal tanpa Docker)
 Bila ingin menjalankan / mengembangkan (debug) skrip ini tanpa kontainer *Docker Compose*:

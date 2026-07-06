@@ -2,6 +2,8 @@
 
 Folder ini berisi sekumpulan **template script Bash** yang dirancang untuk didistribusikan (ditanam) di masing-masing perangkat keras (NAS) klien, seperti *Synology*, *QNAP*, atau *Western Digital*.
 
+> Implementasi `kopia_backup.sh` saat ini masih menjalankan simulasi. Baris `docker run ... kopia/kopia` perlu diaktifkan dan hasil JSON Kopia perlu diparsing sebelum digunakan pada backup production.
+
 Script ini bertindak sebagai *agen* terdesentralisasi dari arsitektur pusat kita. NAS bertugas untuk mengeksekusi mesin (*engine*) pencadangan Kopia, lalu melaporkan jejak hasilnya (berupa objek JSON) secara pasif ke sentral REST API kita melalui endpoint `POST /api/logs/ingest`.
 
 ## 📂 Daftar Script
