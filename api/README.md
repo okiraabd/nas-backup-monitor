@@ -6,7 +6,7 @@ web dashboard, NAS scripts, and metric collector all talk to it over HTTP/JSON.
 
 ## Stack
 - Python 3.12, FastAPI, SQLAlchemy 2.x, Alembic
-- PostgreSQL, JWT (python-jose), bcrypt, ReportLab
+- PostgreSQL, JWT (PyJWT), bcrypt, ReportLab
 
 ## Run with Docker (recommended)
 From the repo root:
@@ -52,6 +52,7 @@ docker compose exec api python -m app.seed
 | username      | password     | role      |
 |---------------|--------------|-----------|
 | admin         | admin123     | admin     |
+| operator      | operator     | operator  |
 | nas-synology  | synology123  | service   |
 | nas-wd        | wd123        | service   |
 | collector     | collector123 | collector |
@@ -64,8 +65,11 @@ docker compose exec api python -m app.seed
 
 Tokens carry `iss`/`aud`/`nbf`/`jti` claims and are validated on every request.
 Default access-token lifetime is 60 min; clients call `/api/auth/refresh` to stay
-logged in. See **`docs/KEAMANAN_JWT.md`** for the full JWT security rationale and
-an exam-style Q&A defending each design choice.
+logged in.
+
+Production safety checks are enabled with `APP_ENV=production`. In that mode the
+API refuses to start if `AUTO_SEED=true` or `JWT_SECRET_KEY` is still a weak
+default value.
 
 ## Backup Logs
 - `POST  /api/logs/ingest` — NAS submits a Kopia result. Role: **service** only.
@@ -114,6 +118,22 @@ so that logout takes effect immediately instead of waiting for token expiry:
 Expired denylist rows are purged lazily on each logout, so the table stays
 small without a background job. Token lifetime is configurable via
 `ACCESS_TOKEN_EXPIRE_MINUTES`.
+
+## Timezone
+The API stores instants in UTC. Business-day boundaries for dashboard filters
+and reports use `APP_TIMEZONE` (default: `Asia/Jakarta`). Incoming timestamp
+fields must include a timezone offset.
+
+Examples:
+- `2026-07-10T09:00:00+07:00`
+- `2026-07-10T02:00:00Z`
+
+## Tests
+Recommended test command from the repository root:
+
+```bash
+docker compose run --rm --no-deps --entrypoint python api -m pytest -q
+```
 
 ## Local (no Docker)
 Requires a reachable PostgreSQL and a `.env` (or env vars) with `DATABASE_URL`

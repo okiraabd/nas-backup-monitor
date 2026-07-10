@@ -21,6 +21,9 @@ Desktop.ini
 .env
 .env.*
 !.env.example
+**/.env
+**/.env.*
+!**/.env.example
 
 # =========================
 # Python
@@ -71,6 +74,8 @@ coverage.xml
 .dmypy.json
 dmypy.json
 .pytype/
+.ruff_cache/
+.pytest_cache/
 
 # =========================
 # Node & Web Dashboard
@@ -85,19 +90,26 @@ yarn-error.log*
 pnpm-debug.log*
 .eslintcache
 *.tsbuildinfo
+.npm/
+.pnpm-store/
 
 # =========================
 # Docker
 # =========================
 docker-compose.override.yml
 docker-compose.override.yaml
+.docker/
 
 # =========================
 # Generated / Runtime Files
 # =========================
 api/generated_reports/
+generated_reports/
 *.pdf
 *.log
+logs/
+runtime/
+tmp/
 
 # NAS reporter runtime data and local credentials
 nas-scripts/pending/*.json
@@ -105,6 +117,8 @@ nas-scripts/runtime/
 nas-scripts/logs/
 nas-scripts/secrets/
 nas-scripts/.env
+nas-scripts/dead-letter/
+nas-scripts/tmp/
 
 # =========================
 # Security - NEVER commit
@@ -115,9 +129,12 @@ nas-scripts/.env
 *.p12
 *.jks
 *.keystore
+*.crt
+*.csr
 
 # =========================
 # Misc
 # =========================
 .gemini/
+.claude/
 test_auth.py

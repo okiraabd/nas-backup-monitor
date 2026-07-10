@@ -1,52 +1,75 @@
-# Metric Collector Daemon
+# Metric Collector
 
-Ini adalah layanan latar belakang (*standalone daemon*) berwujud *script Python* yang bertugas mengumpulkan metrik telemetri dari perangkat keras NAS dan sistem penyimpanan Ceph.
+Collector adalah daemon Python yang mengambil metrik NAS dan Ceph secara
+berkala, lalu mengirimkannya ke Backup Monitor API.
 
-Collector ini bertugas untuk menyuntikkan (POST) berbagai metrik tersebut secara berkala ke sentral REST API kita (`/api/monitor/ingest`).
+Endpoint API yang dipakai:
 
-## 🛠️ Stack Teknologi
-- **Bahasa**: Python 3.12
-- **Dependensi Utama**: `httpx` (untuk komunikasi HTTP), `python-dotenv`.
+- `POST /api/auth/login`
+- `POST /api/monitor/ingest`
+- `POST /api/monitor/collector/run`
+- `GET /api/monitor/collector/status`
 
-## ⚙️ Cara Kerja
-Saat daemon dinyalakan, sistem akan terus melakukan putaran (*loop*) setiap `COLLECTOR_INTERVAL_SECONDS` (contoh: setiap 60 detik). Pada setiap siklus, ia akan:
-1. Mengambil metrik (CPU, RAM, Suhu, Kapasitas) dari entitas yang dipantau.
-2. Memaketkannya ke dalam bentuk JSON Array.
-3. Melakukan autentikasi JWT ke REST API menggunakan kredensial ber-role `collector`.
-4. Mengirim (`POST`) muatan tersebut ke endpoint.
+## Cara kerja
 
-## 🚀 Mode Operasi
-Mode collector diatur melalui *environment variable* `USE_MOCK_METRICS`:
+Pada setiap siklus:
 
-1. **`USE_MOCK_METRICS=true`**
-   Men-generate nilai *dummy/acak* yang fluktuatif namun tampak realistis. Sangat berguna untuk pengujian UI Dashboard, mempresentasikan laporan, atau *demo* aplikasi. Modul SNMP maupun *HTTP request* asli ke Ceph *manager* dinonaktifkan.
+1. Login ke API memakai akun role `collector`.
+2. Ambil metrik NAS dari Prometheus SNMP exporter.
+3. Ambil metrik Ceph dari endpoint Prometheus Ceph manager.
+4. Kirim batch metric ke API.
+5. Kirim status run collector.
+6. Tunggu `COLLECTOR_INTERVAL_SECONDS`, lalu ulangi.
 
-2. **`USE_MOCK_METRICS=false` (default)**
-   Collector membaca endpoint Prometheus SNMP Exporter NAS di port `9116` dan endpoint Prometheus Ceph Manager dari `CEPH_METRICS_URL`. Collector tidak melakukan query SNMP langsung ke perangkat.
+## Mode operasi
 
-> Metrik IOPS Ceph pada mode nyata saat ini bernilai `0` karena perhitungan laju membutuhkan selisih counter antar-sampel.
+| Mode | Konfigurasi | Keterangan |
+|---|---|---|
+| Demo/mock | `USE_MOCK_METRICS=true` | Mengirim data simulasi tanpa NAS/Ceph nyata. |
+| Real | `USE_MOCK_METRICS=false` | Membaca SNMP exporter NAS dan Ceph metrics endpoint. |
 
-## 💻 Panduan Menjalankan (Lokal tanpa Docker)
-Bila ingin menjalankan / mengembangkan (debug) skrip ini tanpa kontainer *Docker Compose*:
+Collector membaca endpoint HTTP exporter; collector tidak melakukan query SNMP
+langsung ke perangkat NAS.
 
-1. **Siapkan Environment**
-   ```bash
-   cp .env.example .env
-   # Edit .env, pastikan URL API sudah benar.
-   ```
+## Konfigurasi
 
-2. **Buat Virtual Environment (Sangat Disarankan)**
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate
-   ```
+Contoh `.env` lokal:
 
-3. **Install Dependensi**
-   ```bash
-   pip install -r requirements.txt
-   ```
+```env
+API_URL=http://localhost:8000/api
+COLLECTOR_USERNAME=collector
+COLLECTOR_PASSWORD=collector123
+COLLECTOR_INTERVAL_SECONDS=60
+USE_MOCK_METRICS=false
+NAS_TARGETS=synology-ds1522:192.168.24.5,wd-pr4100:192.168.24.4
+CEPH_METRICS_URL=http://192.168.24.6:9283/metrics
+```
 
-4. **Jalankan Daemon**
-   ```bash
-   python metric_collector.py
-   ```
+Pada Docker Compose, konfigurasi collector diambil dari root `.env`.
+
+## Menjalankan lokal
+
+```bash
+cd collector
+cp .env.example .env
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python metric_collector.py
+```
+
+Folder virtual environment (`venv/` atau `.venv/`) tidak perlu dicommit.
+
+## Menjalankan via Docker Compose
+
+```bash
+docker compose up -d --build collector
+docker compose logs -f collector
+```
+
+## Troubleshooting
+
+- `401 Unauthorized`: cek `COLLECTOR_USERNAME` dan `COLLECTOR_PASSWORD`.
+- `Temporary failure in name resolution`: biasanya DNS/network Docker sementara setelah API restart; collector akan retry.
+- Tidak ada metric NAS: cek `NAS_TARGETS` dan exporter port `9116`.
+- Tidak ada metric Ceph: cek `CEPH_METRICS_URL`.
