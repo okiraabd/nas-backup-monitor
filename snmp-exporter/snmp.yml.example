@@ -1,7 +1,7 @@
 # WARNING: This file was auto-generated using snmp_exporter generator, manual changes will be lost.
 auths:
   kkp_snmp_v2:
-    community: CHANGE_ME_SNMP_COMMUNITY
+    community: public
     security_level: noAuthNoPriv
     auth_protocol: MD5
     priv_protocol: DES

@@ -6,7 +6,7 @@
 auths:
   kkp_snmp_v2:
     version: 2
-    community: CHANGE_ME_SNMP_COMMUNITY
+    community: public
 
 modules:
   synology_nas:

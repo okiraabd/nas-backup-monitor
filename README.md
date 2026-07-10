@@ -237,7 +237,7 @@ Menjalankan SNMP Exporter bawaan project:
 
 ```bash
 cp snmp-exporter/snmp.yml.example snmp-exporter/snmp.yml
-# edit community/auth SNMP di snmp-exporter/snmp.yml
+# default SNMP v2 community adalah "public"; edit jika NAS memakai community lain
 docker compose --profile snmp up -d snmp-exporter
 ```
 

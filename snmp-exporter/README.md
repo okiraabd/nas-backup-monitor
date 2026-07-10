@@ -71,11 +71,14 @@ Prepare the runtime config:
 cp snmp-exporter/snmp.yml.example snmp-exporter/snmp.yml
 ```
 
-Then edit `snmp-exporter/snmp.yml` and replace:
+By default, the generated config uses SNMP v2c community `public`:
 
 ```yaml
-community: CHANGE_ME_SNMP_COMMUNITY
+community: public
 ```
+
+If the NAS uses another community string, edit `snmp-exporter/snmp.yml` before
+starting the exporter.
 
 Start the service:
 

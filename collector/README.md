@@ -130,7 +130,7 @@ Jika memakai SNMP Exporter bawaan project, siapkan config lalu aktifkan profile
 
 ```bash
 cp snmp-exporter/snmp.yml.example snmp-exporter/snmp.yml
-# edit community/auth SNMP di snmp-exporter/snmp.yml
+# default SNMP v2 community adalah "public"; edit jika NAS memakai community lain
 docker compose --profile snmp up -d snmp-exporter collector
 ```
 
