@@ -21,10 +21,33 @@ PY
 echo "[entrypoint] Running Alembic migrations..."
 alembic upgrade head
 
-if [ "${AUTO_SEED:-false}" = "true" ]; then
-    echo "[entrypoint] AUTO_SEED=true -> seeding database..."
-    python -m app.seed
+# SEED_MODE is the new explicit switch. AUTO_SEED is kept as a legacy fallback.
+SEED_MODE_VALUE="${SEED_MODE:-}"
+if [ -z "$SEED_MODE_VALUE" ]; then
+    if [ "${AUTO_SEED:-false}" = "true" ]; then
+        SEED_MODE_VALUE="demo"
+    else
+        SEED_MODE_VALUE="none"
+    fi
 fi
+
+case "$SEED_MODE_VALUE" in
+    none)
+        echo "[entrypoint] SEED_MODE=none -> skipping seed."
+        ;;
+    users)
+        echo "[entrypoint] SEED_MODE=users -> seeding accounts only..."
+        python -m app.seed users
+        ;;
+    demo)
+        echo "[entrypoint] SEED_MODE=demo -> seeding accounts and demo data..."
+        python -m app.seed demo
+        ;;
+    *)
+        echo "[entrypoint] Invalid SEED_MODE='$SEED_MODE_VALUE'. Use none, users, or demo."
+        exit 1
+        ;;
+esac
 
 echo "[entrypoint] Starting API..."
 exec uvicorn app.main:app --host "${API_HOST:-0.0.0.0}" --port "${API_PORT:-8000}"

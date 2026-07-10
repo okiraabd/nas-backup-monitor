@@ -14,8 +14,10 @@ From the repo root:
 cp .env.example .env
 docker compose up --build
 ```
-With `AUTO_SEED=true` (default in `.env.example`), the API container waits for
-Postgres, runs migrations, and seeds demo data automatically.
+With `SEED_MODE=demo` (default in `.env.example`), the API container waits for
+Postgres, runs migrations, and seeds demo data automatically. Use
+`SEED_MODE=users` when you only need initial accounts, or `SEED_MODE=none` for
+normal production startup after bootstrap.
 
 - API:   http://localhost:8000
 - Docs:  http://localhost:8000/docs
@@ -42,10 +44,11 @@ in UTC, while dashboard/report date ranges are interpreted in `APP_TIMEZONE`
 (default: `Asia/Jakarta`).
 
 ## Manual migration / seed
-If `AUTO_SEED=false` or you want to re-run:
+If `SEED_MODE=none` or you want to re-run manually:
 ```bash
 docker compose exec api alembic upgrade head
-docker compose exec api python -m app.seed
+docker compose exec api python -m app.seed users  # accounts only
+docker compose exec api python -m app.seed demo   # accounts + demo data
 ```
 
 ## Seed accounts
@@ -68,8 +71,8 @@ Default access-token lifetime is 60 min; clients call `/api/auth/refresh` to sta
 logged in.
 
 Production safety checks are enabled with `APP_ENV=production`. In that mode the
-API refuses to start if `AUTO_SEED=true` or `JWT_SECRET_KEY` is still a weak
-default value.
+API refuses to start if `SEED_MODE=demo`, legacy `AUTO_SEED=true`, or
+`JWT_SECRET_KEY` is still a weak default value.
 
 ## Backup Logs
 - `POST  /api/logs/ingest` — NAS submits a Kopia result. Role: **service** only.
@@ -143,6 +146,6 @@ cd api
 pip install -r requirements.txt
 export DATABASE_URL=postgresql+psycopg://backup_monitor:backup_monitor_pw@localhost:5432/backup_monitor
 alembic upgrade head
-python -m app.seed
+python -m app.seed users
 uvicorn app.main:app --reload
 ```

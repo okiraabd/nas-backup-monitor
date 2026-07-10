@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost,http://localhost:5173,http://localhost:3000"
 
     # Behaviour
+    # Preferred seed switch: none, users, or demo. Empty means use legacy AUTO_SEED.
+    seed_mode: str = ""
     auto_seed: bool = False
     reports_dir: str = "/app/generated_reports"
     app_timezone: str = "Asia/Jakarta"
@@ -45,11 +47,27 @@ class Settings(BaseSettings):
         """CORS origins as a list, trimming whitespace and empties."""
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
+    @property
+    def effective_seed_mode(self) -> str:
+        """Resolved seed behavior, with AUTO_SEED kept as legacy fallback."""
+        if self.seed_mode:
+            return self.seed_mode
+        return "demo" if self.auto_seed else "none"
+
     @field_validator("app_env")
     @classmethod
     def normalize_app_env(cls, value: str) -> str:
         """Keep environment names predictable for safety checks."""
         return value.strip().lower()
+
+    @field_validator("seed_mode")
+    @classmethod
+    def normalize_seed_mode(cls, value: str) -> str:
+        """Validate explicit seed mode while allowing empty legacy fallback."""
+        normalized = value.strip().lower()
+        if normalized not in {"", "none", "users", "demo"}:
+            raise ValueError("SEED_MODE must be one of: none, users, demo")
+        return normalized
 
     @field_validator("app_timezone")
     @classmethod
@@ -70,8 +88,8 @@ class Settings(BaseSettings):
             "your_super_secret_jwt_key_here",
         }
         if self.is_production:
-            if self.auto_seed:
-                raise ValueError("AUTO_SEED must be false when APP_ENV=production")
+            if self.effective_seed_mode == "demo":
+                raise ValueError("SEED_MODE=demo/AUTO_SEED=true is not allowed when APP_ENV=production")
             if self.jwt_secret_key in weak_secrets or len(self.jwt_secret_key) < 32:
                 raise ValueError(
                     "JWT_SECRET_KEY must be a strong non-default secret when APP_ENV=production"

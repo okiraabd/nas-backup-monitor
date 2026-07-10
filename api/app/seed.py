@@ -1,8 +1,10 @@
-"""Seed the database with a small demo dataset.
+"""Seed initial users and, optionally, a small demo dataset.
 
-Idempotent: running twice will not duplicate users. Run with:
-    python -m app.seed
+Idempotent: running twice will not duplicate users or demo rows. Run with:
+    python -m app.seed users  # accounts only
+    python -m app.seed demo   # accounts + demo logs/metrics
 """
+import sys
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
@@ -23,6 +25,8 @@ SEED_USERS = [
     ("collector", "collector123", "Metric Collector", "collector"),
     ("operator", "operator", "NOC Operator", "operator"),
 ]
+
+SEED_MODES = {"users", "demo"}
 
 
 def _now() -> datetime:
@@ -191,11 +195,21 @@ def seed_collector_run(db: Session) -> None:
     db.commit()
 
 
-def run() -> None:
+def run(mode: str = "demo") -> None:
+    """Run the requested seed mode."""
+    mode = mode.strip().lower()
+    if mode not in SEED_MODES:
+        raise SystemExit(f"Invalid seed mode '{mode}'. Use: users or demo.")
+
     db = SessionLocal()
     try:
         print("Seeding users...")
         users = seed_users(db)
+
+        if mode == "users":
+            print("Seed users complete.")
+            return
+
         print("Seeding backup logs...")
         seed_backup_logs(db, users)
         print("Seeding metrics...")
@@ -207,5 +221,11 @@ def run() -> None:
         db.close()
 
 
+def main() -> None:
+    """CLI entrypoint. Defaults to demo for backward compatibility."""
+    mode = sys.argv[1] if len(sys.argv) > 1 else "demo"
+    run(mode)
+
+
 if __name__ == "__main__":
-    run()
+    main()

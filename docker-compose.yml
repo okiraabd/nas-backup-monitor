@@ -39,7 +39,8 @@ services:
       JWT_AUDIENCE: ${JWT_AUDIENCE:-backup-monitor-clients}
       APP_ENV: ${APP_ENV:-development}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost,http://localhost:5173}
-      AUTO_SEED: ${AUTO_SEED:-true}
+      SEED_MODE: ${SEED_MODE:-}
+      AUTO_SEED: ${AUTO_SEED:-false}
       REPORTS_DIR: ${REPORTS_DIR:-/app/generated_reports}
       APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Jakarta}
       API_HOST: 0.0.0.0

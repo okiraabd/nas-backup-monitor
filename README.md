@@ -138,7 +138,7 @@ Semua konfigurasi utama berada di `.env`.
 | `DATABASE_URL` | URL SQLAlchemy untuk API. | Host internal Compose: `postgres`. |
 | `JWT_SECRET_KEY` | Secret signing JWT. | Wajib kuat di production. |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | Masa berlaku access token. | Default 60 menit. |
-| `AUTO_SEED` | Seed akun/data demo saat startup. | Gunakan `false` di production. |
+| `SEED_MODE` | Seed saat startup: `none`, `users`, atau `demo`. | `users` hanya akun; `demo` akun + data contoh. |
 | `CORS_ORIGINS` | Origin frontend yang diizinkan. | Pisahkan dengan koma. |
 | `REPORTS_DIR` | Lokasi PDF report di container API. | Default `/app/generated_reports`. |
 | `COLLECTOR_USERNAME` | Akun role `collector`. | Dipakai service collector. |
@@ -157,18 +157,27 @@ Contoh hardening production:
 
 ```env
 APP_ENV=production
-AUTO_SEED=false
+SEED_MODE=none
 JWT_SECRET_KEY=<hasil-openssl-rand-hex-32>
 CORS_ORIGINS=https://dashboard.example.com
 ```
 
-Jika `APP_ENV=production`, API akan gagal start bila `AUTO_SEED=true` atau
-`JWT_SECRET_KEY` masih default/lemah. Ini disengaja agar konfigurasi demo tidak
-terbawa ke production.
+Jika `APP_ENV=production`, API akan gagal start bila `SEED_MODE=demo`,
+`AUTO_SEED=true` legacy, atau `JWT_SECRET_KEY` masih default/lemah. Ini
+disengaja agar konfigurasi demo tidak terbawa ke production.
 
-## Akun demo
+## Seed akun dan data demo
 
-Saat `AUTO_SEED=true`, akun demo berikut dibuat jika belum ada:
+Seed bersifat idempotent: dijalankan ulang tidak membuat duplikasi user atau
+data demo yang sudah ada.
+
+| Mode | Efek | Penggunaan yang disarankan |
+|---|---|---|
+| `SEED_MODE=none` | Tidak seed apapun. | Production normal setelah bootstrap. |
+| `SEED_MODE=users` | Membuat akun awal saja. | Bootstrap awal tanpa data dummy. |
+| `SEED_MODE=demo` | Membuat akun + backup log/metric demo. | Development/staging/demo. |
+
+Akun awal berikut dibuat pada mode `users` dan `demo` jika belum ada:
 
 | Username | Password | Role | Kegunaan |
 |---|---|---|---|
@@ -178,7 +187,9 @@ Saat `AUTO_SEED=true`, akun demo berikut dibuat jika belum ada:
 | `nas-wd` | `wd123` | `service` | NAS reporter WD/demo. |
 | `collector` | `collector123` | `collector` | Metric collector. |
 
-Ubah atau nonaktifkan akun demo sebelum production.
+Untuk production, gunakan `SEED_MODE=users` hanya saat bootstrap awal, lalu ubah
+password/nonaktifkan akun yang tidak dipakai. Setelah itu kembalikan ke
+`SEED_MODE=none`.
 
 ## Role dan permission
 
@@ -329,7 +340,7 @@ jika ada perubahan kode.
 ## Operasional dan best practice
 
 - Jangan commit `.env`, password, token, file PDF report, cache, atau folder runtime.
-- Gunakan `APP_ENV=production`, `AUTO_SEED=false`, dan JWT secret kuat untuk production.
+- Gunakan `APP_ENV=production`, `SEED_MODE=none`, dan JWT secret kuat untuk production.
 - Jalankan API di balik TLS/reverse proxy untuk akses production.
 - Batasi exposure PostgreSQL; port host DB hanya perlu untuk administrasi lokal.
 - Backup volume Docker `pgdata` dan `reports` jika data perlu dipertahankan.
