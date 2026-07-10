@@ -1,6 +1,6 @@
 """Report service — gather data, render PDF, persist metadata."""
 import os
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -12,6 +12,7 @@ from app.models.report import Report
 from app.models.user import User
 from app.services import monitor_service
 from app.services.pdf_service import build_report_pdf
+from app.timezone import local_date_range_bounds_utc
 
 
 def generate_report(
@@ -24,9 +25,8 @@ def generate_report(
     generated_by: User,
 ) -> Report:
     """Collect logs + monitoring, render a PDF, store the file and metadata."""
-    # Inclusive day range: [date_from 00:00, date_to 23:59:59].
-    start = datetime.combine(date_from, time.min, tzinfo=timezone.utc)
-    end = datetime.combine(date_to, time.max, tzinfo=timezone.utc)
+    # Inclusive local date range, converted to UTC for database comparisons.
+    start, end = local_date_range_bounds_utc(date_from, date_to)
 
     conditions = [BackupLog.created_at >= start, BackupLog.created_at <= end]
     if nas_id:

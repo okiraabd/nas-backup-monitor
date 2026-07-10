@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { Server, Database, AlertCircle, CheckCircle2, XCircle } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatDateTimeWib } from "@/lib/datetime";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
@@ -200,7 +201,7 @@ export function Overview() {
                           )}
                         </div>
                         <div className="text-sm text-muted-foreground mt-1">
-                          Job: {log.job_name} • {new Date(log.created_at.replace("Z", "")).toLocaleString()}
+                          Job: {log.job_name} • {formatDateTimeWib(log.created_at)}
                         </div>
                         {log.message && (
                           <div className="text-sm text-destructive mt-1 font-mono break-all">

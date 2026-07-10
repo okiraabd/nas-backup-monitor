@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { format } from "date-fns";
+import { formatLongDateTimeWib } from "@/lib/datetime";
 import { Activity, Clock, ShieldAlert, CheckCircle2, Play, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -96,7 +96,7 @@ export function CollectorStatus() {
                   <p className="text-sm font-medium text-muted-foreground flex items-center gap-1">
                     <Clock className="h-4 w-4" /> Timestamp
                   </p>
-                  <p>{status.last_run_at ? format(new Date(status.last_run_at), "PPpp") : "-"}</p>
+                  <p>{formatLongDateTimeWib(status.last_run_at)}</p>
                 </div>
 
                 <div className="space-y-1 border-t pt-4">

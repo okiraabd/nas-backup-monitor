@@ -1,8 +1,8 @@
 """Monitoring router: ingest (collector), summaries + history (admin)."""
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select, func, cast, Date, case
+from sqlalchemy import Date, case, cast, func, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -11,7 +11,10 @@ from app.models.collector_run import CollectorRun
 from app.models.metric import SOURCE_CEPH, SOURCE_NAS, Metric
 from app.models.user import User
 from app.models.backup_log import BackupLog
+from app.config import settings
 from app.schemas.monitor import (
+    ActivityDay,
+    ActivityTrendResponse,
     CollectorRunRequest,
     CollectorStatus,
     MetricHistory,
@@ -20,11 +23,9 @@ from app.schemas.monitor import (
     MonitorSummary,
     NasListResponse,
     SourceSnapshot,
-    ActivityTrendResponse,
-    ActivityDay,
 )
 from app.services import monitor_service as svc
-from datetime import timedelta
+from app.timezone import app_zone, local_day_bounds_utc
 
 router = APIRouter(prefix="/monitor", tags=["monitor"])
 
@@ -106,12 +107,19 @@ def activity_trend(
     current_user: User = Depends(require_operator_or_admin),
 ) -> ActivityTrendResponse:
     """Get backup success/failure trend for the last 7 days. Role: admin/operator."""
-    # SQLite friendly date truncation
-    date_expr = func.date(BackupLog.created_at)
-    
-    # Query logs from the last 7 days
-    seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
-    
+    bind = db.get_bind()
+    dialect = bind.dialect.name if bind is not None else ""
+    if dialect == "postgresql":
+        date_expr = cast(func.timezone(settings.app_timezone, BackupLog.created_at), Date)
+    else:
+        # SQLite test/dev fallback. Asia/Jakarta is UTC+07 with no DST.
+        date_expr = func.date(BackupLog.created_at, "+7 hours")
+
+    # Query the last 7 local calendar days, not the last 7 UTC days.
+    today_local = datetime.now(timezone.utc).astimezone(app_zone()).date()
+    start_date = today_local - timedelta(days=6)
+    seven_days_ago, _ = local_day_bounds_utc(start_date)
+
     results = db.execute(
         select(
             date_expr.label("log_date"),

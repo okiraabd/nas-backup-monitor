@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { api } from "@/lib/api";
-import { format } from "date-fns";
+import { formatDateTimeWib } from "@/lib/datetime";
 import { Users as UsersIcon, ShieldAlert, Key, PlusCircle, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -407,7 +407,7 @@ export function Users() {
                         )}
                       </TableCell>
                       <TableCell>
-                        {user.last_login_at ? format(new Date(user.last_login_at), "yyyy-MM-dd HH:mm") : "Never"}
+                        {user.last_login_at ? formatDateTimeWib(user.last_login_at, { seconds: false }) : "Never"}
                       </TableCell>
                       <TableCell className="text-right space-x-2">
                         {user.role === "service" && user.is_active && (

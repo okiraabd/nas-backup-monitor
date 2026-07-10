@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { format } from "date-fns";
+import { formatDateTimeWib } from "@/lib/datetime";
 import { FileText, Download, Trash2, PlusCircle, AlertCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -248,7 +248,7 @@ export function Reports() {
                       </TableCell>
                       <TableCell>{report.date_from} to {report.date_to}</TableCell>
                       <TableCell>{report.nas_filter || <span className="text-muted-foreground">All NAS</span>}</TableCell>
-                      <TableCell>{format(new Date(report.generated_at), "yyyy-MM-dd HH:mm")}</TableCell>
+                      <TableCell>{formatDateTimeWib(report.generated_at, { seconds: false })}</TableCell>
                       <TableCell>{report.file_size_bytes ? `${(report.file_size_bytes / 1024).toFixed(1)} KB` : '-'}</TableCell>
                       <TableCell className="text-right space-x-2">
                         <Button 

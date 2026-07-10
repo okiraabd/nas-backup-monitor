@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Database, CheckCircle2, XCircle, AlertCircle, HardDrive, Activity } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatDateTimeWib, formatTimeWib } from "@/lib/datetime";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
   AreaChart,
@@ -12,7 +13,6 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { format } from "date-fns";
 
 export function MonitorCeph() {
   const [metric] = useState("storage_used_pct");
@@ -55,8 +55,8 @@ export function MonitorCeph() {
   const storageUsed = getMetric("storage_used_pct")?.value;
 
   const chartData = history?.points?.map((p: any) => ({
-    time: format(new Date(p.collected_at), "HH:mm"),
-    fullDate: new Date(p.collected_at).toLocaleString(),
+    time: formatTimeWib(p.collected_at),
+    fullDate: formatDateTimeWib(p.collected_at),
     value: p.value,
   })).reverse() || [];
 
@@ -104,7 +104,7 @@ export function MonitorCeph() {
                   </div>
                 )}
                 <p className="text-xs text-muted-foreground mt-2">
-                  Last updated: {snapshot && snapshot.last_collected_at ? format(new Date(snapshot.last_collected_at), "HH:mm:ss") : "-"}
+                  Last updated: {formatTimeWib(snapshot?.last_collected_at, { seconds: true, suffix: true })}
                 </p>
                 {healthDetail && healthDetail !== "None" && (
                   <p className="text-xs text-rose-500 mt-2 font-medium bg-rose-500/10 p-2 rounded break-all">

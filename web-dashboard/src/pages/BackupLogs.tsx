@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { format } from "date-fns";
+import { formatDateTimeWib, jakartaDateToUtcRange } from "@/lib/datetime";
 import { Link, useSearchParams } from "react-router-dom";
 import { Eye, CheckCircle2, XCircle, Clock, History, X } from "lucide-react";
 
@@ -59,9 +59,12 @@ export function BackupLogs() {
       if (nasId !== "ALL") params.nas_id = nasId;
       if (jobName) params.job_name = jobName;
       if (dateFilter) {
-        // e.g. "2026-07-04" -> filter logs created on that specific UTC day
-        params.date_from = `${dateFilter}T00:00:00Z`;
-        params.date_to = `${dateFilter}T23:59:59Z`;
+        // Date input is a local Jakarta day; API still receives UTC bounds.
+        const range = jakartaDateToUtcRange(dateFilter);
+        if (range) {
+          params.date_from = range.date_from;
+          params.date_to = range.date_to;
+        }
       }
       
       const res = await api.get("/logs", { params });
@@ -194,8 +197,7 @@ export function BackupLogs() {
                   data?.items?.map((log: any) => (
                     <TableRow key={log.id}>
                       <TableCell className="font-medium whitespace-nowrap">
-                        {/* Remove 'Z' so browser parses it as local time, preserving the backend's UTC date visual */}
-                        {format(new Date(log.created_at.replace("Z", "")), "yyyy-MM-dd HH:mm:ss")}
+                        {formatDateTimeWib(log.created_at)}
                       </TableCell>
                       <TableCell>{log.nas_id}</TableCell>
                       <TableCell>{log.job_name}</TableCell>

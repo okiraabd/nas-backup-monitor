@@ -1,11 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link } from "react-router-dom";
 import { ArrowLeft, CheckCircle2, Clock, XCircle, AlertTriangle } from "lucide-react";
-import { format } from "date-fns";
 import { useState } from "react";
 
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { formatDateTimeWib, formatLongDateTimeWib } from "@/lib/datetime";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -116,7 +116,7 @@ export function BackupLogDetail() {
               {log.remark ? `Remark: ${log.remark}` : "No remark provided."}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              At {log.acknowledged_at ? format(new Date(log.acknowledged_at), "PPpp") : "Unknown time"}
+              At {log.acknowledged_at ? formatLongDateTimeWib(log.acknowledged_at) : "Unknown time"}
             </p>
           </div>
         </div>
@@ -131,11 +131,11 @@ export function BackupLogDetail() {
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <div className="font-medium text-muted-foreground">Started At</div>
-                <div>{log.started_at ? format(new Date(log.started_at), "yyyy-MM-dd HH:mm:ss") : "-"}</div>
+                <div>{formatDateTimeWib(log.started_at)}</div>
               </div>
               <div>
                 <div className="font-medium text-muted-foreground">Ended At</div>
-                <div>{log.ended_at ? format(new Date(log.ended_at), "yyyy-MM-dd HH:mm:ss") : "-"}</div>
+                <div>{formatDateTimeWib(log.ended_at)}</div>
               </div>
               <div>
                 <div className="font-medium text-muted-foreground">Duration</div>

@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     # Behaviour
     auto_seed: bool = False
     reports_dir: str = "/app/generated_reports"
+    app_timezone: str = "Asia/Jakarta"
 
     @property
     def cors_origin_list(self) -> list[str]:

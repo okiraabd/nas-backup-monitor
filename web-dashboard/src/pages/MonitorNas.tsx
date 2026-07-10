@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Server, Activity, Cpu, MemoryStick, HardDrive } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatDateTimeWib, formatTimeWib } from "@/lib/datetime";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -13,7 +14,6 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { format } from "date-fns";
 
 export function MonitorNas() {
   const [selectedNas, setSelectedNas] = useState<string | null>(null);
@@ -63,7 +63,7 @@ export function MonitorNas() {
                         {nas.source_id}
                       </div>
                       <div className="text-xs text-muted-foreground mt-1">
-                        Last seen: {nas.last_collected_at ? format(new Date(nas.last_collected_at), "HH:mm:ss") : "-"}
+                        Last seen: {formatTimeWib(nas.last_collected_at, { seconds: true, suffix: true })}
                       </div>
                     </div>
                     <div>
@@ -117,8 +117,8 @@ function NasDetailView({ nasId }: { nasId: string }) {
 
   // Transform history data for Recharts
   const chartData = history?.points?.map((p: any) => ({
-    time: format(new Date(p.collected_at), "HH:mm"),
-    fullDate: new Date(p.collected_at).toLocaleString(),
+    time: formatTimeWib(p.collected_at),
+    fullDate: formatDateTimeWib(p.collected_at),
     value: p.value,
   })).reverse() || []; // Reverse so oldest is first, newest on right
 
