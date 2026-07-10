@@ -75,7 +75,7 @@ COLLECTOR_PASSWORD=collector123
 COLLECTOR_INTERVAL_SECONDS=60
 USE_MOCK_METRICS=false
 
-SNMP_EXPORTER_URL=http://snmp-exporter.example.lan:9116/snmp
+SNMP_EXPORTER_URL=http://snmp-exporter:9116/snmp?auth=kkp_snmp_v2
 SNMP_DEFAULT_MODULE=if_mib
 NAS_TARGETS=synology-ds1522|192.168.24.5|synology_nas,wd-pr4100|192.168.24.4|wd_pr4100
 
@@ -100,7 +100,7 @@ untuk production campuran Synology dan WD.
 Jika SNMP Exporter memakai auth profile, masukkan auth di base URL:
 
 ```env
-SNMP_EXPORTER_URL=http://snmp-exporter.example.lan:9116/snmp?auth=kkp_snmp_v2
+SNMP_EXPORTER_URL=http://snmp-exporter:9116/snmp?auth=kkp_snmp_v2
 ```
 
 Collector akan otomatis menambahkan `target` dan `module`.
@@ -125,13 +125,22 @@ docker compose up -d --build collector
 docker compose logs -f collector
 ```
 
+Jika memakai SNMP Exporter bawaan project, siapkan config lalu aktifkan profile
+`snmp`:
+
+```bash
+cp snmp-exporter/snmp.yml.example snmp-exporter/snmp.yml
+# edit community/auth SNMP di snmp-exporter/snmp.yml
+docker compose --profile snmp up -d snmp-exporter collector
+```
+
 ## Test manual SNMP Exporter
 
 Sebelum collector diaktifkan, cek output exporter:
 
 ```bash
-curl 'http://snmp-exporter.example.lan:9116/snmp?target=192.168.24.5&module=synology_nas'
-curl 'http://snmp-exporter.example.lan:9116/snmp?target=192.168.24.4&module=wd_pr4100'
+curl 'http://127.0.0.1:9116/snmp?auth=kkp_snmp_v2&target=192.168.24.5&module=synology_nas'
+curl 'http://127.0.0.1:9116/snmp?auth=kkp_snmp_v2&target=192.168.24.4&module=wd_pr4100'
 ```
 
 Minimal output Synology yang ideal:

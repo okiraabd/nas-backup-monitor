@@ -122,6 +122,7 @@ Container:
 | `bm_api` | FastAPI + Alembic migration | `${API_HOST_PORT:-8000}` |
 | `bm_web` | Nginx static web dashboard | `${WEB_HOST_PORT:-80}` |
 | `bm_collector` | Metric collector daemon | internal only |
+| `bm_snmp_exporter` | Optional SNMP Exporter profile `snmp` | `${SNMP_EXPORTER_HOST_BIND:-127.0.0.1}:${SNMP_EXPORTER_HOST_PORT:-9116}` |
 
 ## Environment penting
 
@@ -144,6 +145,9 @@ Semua konfigurasi utama berada di `.env`.
 | `COLLECTOR_PASSWORD` | Password akun collector. | Jangan commit nilai asli. |
 | `COLLECTOR_INTERVAL_SECONDS` | Interval polling metric. | Default 60 detik. |
 | `USE_MOCK_METRICS` | Aktifkan metric dummy. | Cocok untuk demo. |
+| `SNMP_EXPORTER_IMAGE` | Image SNMP Exporter. | Pin tag di production. |
+| `SNMP_EXPORTER_HOST_BIND` | IP bind port exporter di host. | Default `127.0.0.1`. |
+| `SNMP_EXPORTER_HOST_PORT` | Port exporter di host. | Default `9116`. |
 | `SNMP_EXPORTER_URL` | Endpoint SNMP Exporter terpusat. | Contoh `http://host:9116/snmp`. |
 | `SNMP_DEFAULT_MODULE` | Module fallback SNMP Exporter. | Default `if_mib`. |
 | `NAS_TARGETS` | Target NAS untuk collector. | Format `source_id\|ip\|module`. |
@@ -208,7 +212,9 @@ Timestamp request harus membawa timezone offset eksplisit, misalnya
 ## Workflow SNMP monitoring NAS
 
 Production direkomendasikan memakai SNMP Exporter terpusat di server Linux yang
-bisa menjangkau semua NAS.
+bisa menjangkau semua NAS. Project ini menyediakan service SNMP Exporter
+opsional lewat Compose profile `snmp`; jika exporter sudah berjalan di server
+lain, cukup arahkan `SNMP_EXPORTER_URL` ke server tersebut.
 
 Prinsipnya:
 
@@ -227,10 +233,25 @@ Prinsipnya:
    - `system_uptime`
    - `snmp_reachable`
 
-Contoh konfigurasi collector:
+Menjalankan SNMP Exporter bawaan project:
+
+```bash
+cp snmp-exporter/snmp.yml.example snmp-exporter/snmp.yml
+# edit community/auth SNMP di snmp-exporter/snmp.yml
+docker compose --profile snmp up -d snmp-exporter
+```
+
+Contoh konfigurasi collector jika memakai exporter bawaan Compose:
 
 ```env
-SNMP_EXPORTER_URL=http://snmp-exporter.example.lan:9116/snmp
+SNMP_EXPORTER_URL=http://snmp-exporter:9116/snmp?auth=kkp_snmp_v2
+NAS_TARGETS=synology-ds1522|192.168.24.5|synology_nas,wd-pr4100|192.168.24.4|wd_pr4100
+```
+
+Contoh jika memakai exporter external:
+
+```env
+SNMP_EXPORTER_URL=http://snmp-exporter.example.lan:9116/snmp?auth=kkp_snmp_v2
 NAS_TARGETS=synology-ds1522|192.168.24.5|synology_nas,wd-pr4100|192.168.24.4|wd_pr4100
 ```
 

@@ -82,6 +82,22 @@ services:
       NAS_TARGETS: ${NAS_TARGETS:-synology-ds1522|192.168.24.5|synology_nas,wd-pr4100|192.168.24.4|wd_pr4100}
       CEPH_METRICS_URL: ${CEPH_METRICS_URL:-http://192.168.24.6:9283/metrics}
 
+  snmp-exporter:
+    image: ${SNMP_EXPORTER_IMAGE:-prom/snmp-exporter:latest}
+    container_name: bm_snmp_exporter
+    restart: unless-stopped
+    profiles:
+      - snmp
+    volumes:
+      - ./snmp-exporter/snmp.yml:/etc/snmp_exporter/snmp.yml:ro
+    command:
+      - --config.file=/etc/snmp_exporter/snmp.yml
+    ports:
+      # Bound to localhost by default so the exporter is not public accidentally.
+      - "${SNMP_EXPORTER_HOST_BIND:-127.0.0.1}:${SNMP_EXPORTER_HOST_PORT:-9116}:9116"
+    expose:
+      - "9116"
+
 volumes:
   pgdata:
   reports:

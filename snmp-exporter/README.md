@@ -16,7 +16,8 @@ Synology / WD NAS --SNMP UDP/161--> SNMP Exporter --HTTP /snmp--> collector
 |---|---|
 | `generator.yml` | Template module definition for `synology_nas` and `wd_pr4100`. |
 | `mibs/` | Temporary location for vendor MIB files when generating `snmp.yml`. |
-| `snmp.yml` | Generated runtime config. Do not commit production secrets. |
+| `snmp.yml.example` | Sanitized generated config with placeholder community. Safe to commit. |
+| `snmp.yml` | Runtime config mounted by Docker Compose. Do not commit production secrets. |
 
 ## Module design
 
@@ -58,13 +59,44 @@ The official generator accepts custom MIB directories and paths similar to:
 If MIB namespace conflicts appear, generate Synology and WD configs separately,
 then merge the `auths` and `modules` sections into one `snmp.yml`.
 
+## Run bundled SNMP Exporter
+
+The project includes an optional Docker Compose service named `snmp-exporter`.
+It is behind the `snmp` profile so the default stack does not require an SNMP
+config file.
+
+Prepare the runtime config:
+
+```bash
+cp snmp-exporter/snmp.yml.example snmp-exporter/snmp.yml
+```
+
+Then edit `snmp-exporter/snmp.yml` and replace:
+
+```yaml
+community: CHANGE_ME_SNMP_COMMUNITY
+```
+
+Start the service:
+
+```bash
+docker compose --profile snmp up -d snmp-exporter
+```
+
+By default, the exporter binds to `127.0.0.1:9116` on the host and is reachable
+inside Compose as:
+
+```text
+http://snmp-exporter:9116/snmp
+```
+
 ## Test manually
 
 After SNMP Exporter runs, test each NAS before enabling the collector:
 
 ```bash
-curl 'http://SNMP_EXPORTER_HOST:9116/snmp?target=192.168.x.x&module=synology_nas'
-curl 'http://SNMP_EXPORTER_HOST:9116/snmp?target=192.168.x.y&module=wd_pr4100'
+curl 'http://127.0.0.1:9116/snmp?auth=kkp_snmp_v2&target=192.168.x.x&module=synology_nas'
+curl 'http://127.0.0.1:9116/snmp?auth=kkp_snmp_v2&target=192.168.x.y&module=wd_pr4100'
 ```
 
 Expected important metric names for Backup Monitor:
@@ -94,7 +126,7 @@ mycloudpr4100VolumeFreeSpace
 Point the collector to the centralized exporter:
 
 ```env
-SNMP_EXPORTER_URL=http://SNMP_EXPORTER_HOST:9116/snmp
+SNMP_EXPORTER_URL=http://snmp-exporter:9116/snmp?auth=kkp_snmp_v2
 NAS_TARGETS=synology-ds1522|192.168.x.x|synology_nas,wd-pr4100|192.168.x.y|wd_pr4100
 ```
 

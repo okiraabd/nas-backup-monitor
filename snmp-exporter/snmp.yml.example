@@ -1,0 +1,1586 @@
+# WARNING: This file was auto-generated using snmp_exporter generator, manual changes will be lost.
+auths:
+  kkp_snmp_v2:
+    community: CHANGE_ME_SNMP_COMMUNITY
+    security_level: noAuthNoPriv
+    auth_protocol: MD5
+    priv_protocol: DES
+    version: 2
+modules:
+  synology_nas:
+    walk:
+    - 1.3.6.1.2.1.25.2.3.1
+    - 1.3.6.1.4.1.2021.10
+    - 1.3.6.1.4.1.2021.11
+    - 1.3.6.1.4.1.2021.13.15
+    - 1.3.6.1.4.1.2021.4
+    - 1.3.6.1.4.1.6574.1
+    - 1.3.6.1.4.1.6574.2
+    - 1.3.6.1.4.1.6574.3
+    get:
+    - 1.3.6.1.2.1.1.3.0
+    metrics:
+    - name: sysUpTime
+      oid: 1.3.6.1.2.1.1.3
+      type: gauge
+      help: The time (in hundredths of a second) since the network management portion
+        of the system was last re-initialized. - 1.3.6.1.2.1.1.3
+    - name: hrStorageIndex
+      oid: 1.3.6.1.2.1.25.2.3.1.1
+      type: gauge
+      help: A unique value for each logical storage area contained by the host. -
+        1.3.6.1.2.1.25.2.3.1.1
+      indexes:
+      - labelname: hrStorageIndex
+        type: gauge
+      lookups:
+      - labels:
+        - hrStorageIndex
+        labelname: hrStorageDescr
+        oid: 1.3.6.1.2.1.25.2.3.1.3
+        type: DisplayString
+    - name: hrStorageType
+      oid: 1.3.6.1.2.1.25.2.3.1.2
+      type: OctetString
+      help: The type of storage represented by this entry. - 1.3.6.1.2.1.25.2.3.1.2
+      indexes:
+      - labelname: hrStorageIndex
+        type: gauge
+      lookups:
+      - labels:
+        - hrStorageIndex
+        labelname: hrStorageDescr
+        oid: 1.3.6.1.2.1.25.2.3.1.3
+        type: DisplayString
+    - name: hrStorageDescr
+      oid: 1.3.6.1.2.1.25.2.3.1.3
+      type: DisplayString
+      help: A description of the type and instance of the storage described by this
+        entry. - 1.3.6.1.2.1.25.2.3.1.3
+      indexes:
+      - labelname: hrStorageIndex
+        type: gauge
+      lookups:
+      - labels:
+        - hrStorageIndex
+        labelname: hrStorageDescr
+        oid: 1.3.6.1.2.1.25.2.3.1.3
+        type: DisplayString
+    - name: hrStorageAllocationUnits
+      oid: 1.3.6.1.2.1.25.2.3.1.4
+      type: gauge
+      help: The size, in bytes, of the data objects allocated from this pool - 1.3.6.1.2.1.25.2.3.1.4
+      indexes:
+      - labelname: hrStorageIndex
+        type: gauge
+      lookups:
+      - labels:
+        - hrStorageIndex
+        labelname: hrStorageDescr
+        oid: 1.3.6.1.2.1.25.2.3.1.3
+        type: DisplayString
+    - name: hrStorageSize
+      oid: 1.3.6.1.2.1.25.2.3.1.5
+      type: gauge
+      help: The size of the storage represented by this entry, in units of hrStorageAllocationUnits
+        - 1.3.6.1.2.1.25.2.3.1.5
+      indexes:
+      - labelname: hrStorageIndex
+        type: gauge
+      lookups:
+      - labels:
+        - hrStorageIndex
+        labelname: hrStorageDescr
+        oid: 1.3.6.1.2.1.25.2.3.1.3
+        type: DisplayString
+    - name: hrStorageUsed
+      oid: 1.3.6.1.2.1.25.2.3.1.6
+      type: gauge
+      help: The amount of the storage represented by this entry that is allocated,
+        in units of hrStorageAllocationUnits. - 1.3.6.1.2.1.25.2.3.1.6
+      indexes:
+      - labelname: hrStorageIndex
+        type: gauge
+      lookups:
+      - labels:
+        - hrStorageIndex
+        labelname: hrStorageDescr
+        oid: 1.3.6.1.2.1.25.2.3.1.3
+        type: DisplayString
+    - name: hrStorageAllocationFailures
+      oid: 1.3.6.1.2.1.25.2.3.1.7
+      type: counter
+      help: The number of requests for storage represented by this entry that could
+        not be honored due to not enough storage - 1.3.6.1.2.1.25.2.3.1.7
+      indexes:
+      - labelname: hrStorageIndex
+        type: gauge
+      lookups:
+      - labels:
+        - hrStorageIndex
+        labelname: hrStorageDescr
+        oid: 1.3.6.1.2.1.25.2.3.1.3
+        type: DisplayString
+    - name: laIndex
+      oid: 1.3.6.1.4.1.2021.10.1.1
+      type: gauge
+      help: reference index/row number for each observed loadave. - 1.3.6.1.4.1.2021.10.1.1
+      indexes:
+      - labelname: laIndex
+        type: gauge
+    - name: laNames
+      oid: 1.3.6.1.4.1.2021.10.1.2
+      type: DisplayString
+      help: The list of loadave names we're watching. - 1.3.6.1.4.1.2021.10.1.2
+      indexes:
+      - labelname: laIndex
+        type: gauge
+    - name: laLoad
+      oid: 1.3.6.1.4.1.2021.10.1.3
+      type: DisplayString
+      help: The 1,5 and 15 minute load averages (one per row). - 1.3.6.1.4.1.2021.10.1.3
+      indexes:
+      - labelname: laIndex
+        type: gauge
+    - name: laConfig
+      oid: 1.3.6.1.4.1.2021.10.1.4
+      type: DisplayString
+      help: The watch point for load-averages to signal an error - 1.3.6.1.4.1.2021.10.1.4
+      indexes:
+      - labelname: laIndex
+        type: gauge
+    - name: laLoadInt
+      oid: 1.3.6.1.4.1.2021.10.1.5
+      type: gauge
+      help: The 1,5 and 15 minute load averages as an integer - 1.3.6.1.4.1.2021.10.1.5
+      indexes:
+      - labelname: laIndex
+        type: gauge
+    - name: laLoadFloat
+      oid: 1.3.6.1.4.1.2021.10.1.6
+      type: Float
+      help: The 1,5 and 15 minute load averages as an opaquely wrapped floating point
+        number. - 1.3.6.1.4.1.2021.10.1.6
+      indexes:
+      - labelname: laIndex
+        type: gauge
+    - name: laErrorFlag
+      oid: 1.3.6.1.4.1.2021.10.1.100
+      type: gauge
+      help: A Error flag to indicate the load-average has crossed its threshold value
+        defined in the snmpd.conf file - 1.3.6.1.4.1.2021.10.1.100
+      indexes:
+      - labelname: laIndex
+        type: gauge
+      enum_values:
+        0: noError
+        1: error
+    - name: laErrMessage
+      oid: 1.3.6.1.4.1.2021.10.1.101
+      type: DisplayString
+      help: An error message describing the load-average and its surpased watch-point
+        value. - 1.3.6.1.4.1.2021.10.1.101
+      indexes:
+      - labelname: laIndex
+        type: gauge
+    - name: ssIndex
+      oid: 1.3.6.1.4.1.2021.11.1
+      type: gauge
+      help: Bogus Index - 1.3.6.1.4.1.2021.11.1
+    - name: ssErrorName
+      oid: 1.3.6.1.4.1.2021.11.2
+      type: DisplayString
+      help: Bogus Name - 1.3.6.1.4.1.2021.11.2
+    - name: ssSwapIn
+      oid: 1.3.6.1.4.1.2021.11.3
+      type: gauge
+      help: The average amount of memory swapped in from disk, calculated over the
+        last minute. - 1.3.6.1.4.1.2021.11.3
+    - name: ssSwapOut
+      oid: 1.3.6.1.4.1.2021.11.4
+      type: gauge
+      help: The average amount of memory swapped out to disk, calculated over the
+        last minute. - 1.3.6.1.4.1.2021.11.4
+    - name: ssIOSent
+      oid: 1.3.6.1.4.1.2021.11.5
+      type: gauge
+      help: The average amount of data written to disk or other block device, calculated
+        over the last minute - 1.3.6.1.4.1.2021.11.5
+    - name: ssIOReceive
+      oid: 1.3.6.1.4.1.2021.11.6
+      type: gauge
+      help: The average amount of data read from disk or other block device, calculated
+        over the last minute - 1.3.6.1.4.1.2021.11.6
+    - name: ssSysInterrupts
+      oid: 1.3.6.1.4.1.2021.11.7
+      type: gauge
+      help: The average rate of interrupts processed (including the clock) calculated
+        over the last minute - 1.3.6.1.4.1.2021.11.7
+    - name: ssSysContext
+      oid: 1.3.6.1.4.1.2021.11.8
+      type: gauge
+      help: The average rate of context switches, calculated over the last minute
+        - 1.3.6.1.4.1.2021.11.8
+    - name: ssCpuUser
+      oid: 1.3.6.1.4.1.2021.11.9
+      type: gauge
+      help: The percentage of CPU time spent processing user-level code, calculated
+        over the last minute - 1.3.6.1.4.1.2021.11.9
+    - name: ssCpuSystem
+      oid: 1.3.6.1.4.1.2021.11.10
+      type: gauge
+      help: The percentage of CPU time spent processing system-level code, calculated
+        over the last minute - 1.3.6.1.4.1.2021.11.10
+    - name: ssCpuIdle
+      oid: 1.3.6.1.4.1.2021.11.11
+      type: gauge
+      help: The percentage of processor time spent idle, calculated over the last
+        minute - 1.3.6.1.4.1.2021.11.11
+    - name: ssCpuRawUser
+      oid: 1.3.6.1.4.1.2021.11.50
+      type: counter
+      help: The number of 'ticks' (typically 1/100s) spent processing user-level code
+        - 1.3.6.1.4.1.2021.11.50
+    - name: ssCpuRawNice
+      oid: 1.3.6.1.4.1.2021.11.51
+      type: counter
+      help: The number of 'ticks' (typically 1/100s) spent processing reduced-priority
+        code - 1.3.6.1.4.1.2021.11.51
+    - name: ssCpuRawSystem
+      oid: 1.3.6.1.4.1.2021.11.52
+      type: counter
+      help: The number of 'ticks' (typically 1/100s) spent processing system-level
+        code - 1.3.6.1.4.1.2021.11.52
+    - name: ssCpuRawIdle
+      oid: 1.3.6.1.4.1.2021.11.53
+      type: counter
+      help: The number of 'ticks' (typically 1/100s) spent idle - 1.3.6.1.4.1.2021.11.53
+    - name: ssCpuRawWait
+      oid: 1.3.6.1.4.1.2021.11.54
+      type: counter
+      help: The number of 'ticks' (typically 1/100s) spent waiting for IO - 1.3.6.1.4.1.2021.11.54
+    - name: ssCpuRawKernel
+      oid: 1.3.6.1.4.1.2021.11.55
+      type: counter
+      help: The number of 'ticks' (typically 1/100s) spent processing kernel-level
+        code - 1.3.6.1.4.1.2021.11.55
+    - name: ssCpuRawInterrupt
+      oid: 1.3.6.1.4.1.2021.11.56
+      type: counter
+      help: The number of 'ticks' (typically 1/100s) spent processing hardware interrupts
+        - 1.3.6.1.4.1.2021.11.56
+    - name: ssIORawSent
+      oid: 1.3.6.1.4.1.2021.11.57
+      type: counter
+      help: Number of blocks sent to a block device - 1.3.6.1.4.1.2021.11.57
+    - name: ssIORawReceived
+      oid: 1.3.6.1.4.1.2021.11.58
+      type: counter
+      help: Number of blocks received from a block device - 1.3.6.1.4.1.2021.11.58
+    - name: ssRawInterrupts
+      oid: 1.3.6.1.4.1.2021.11.59
+      type: counter
+      help: Number of interrupts processed - 1.3.6.1.4.1.2021.11.59
+    - name: ssRawContexts
+      oid: 1.3.6.1.4.1.2021.11.60
+      type: counter
+      help: Number of context switches - 1.3.6.1.4.1.2021.11.60
+    - name: ssCpuRawSoftIRQ
+      oid: 1.3.6.1.4.1.2021.11.61
+      type: counter
+      help: The number of 'ticks' (typically 1/100s) spent processing software interrupts
+        - 1.3.6.1.4.1.2021.11.61
+    - name: ssRawSwapIn
+      oid: 1.3.6.1.4.1.2021.11.62
+      type: counter
+      help: Number of blocks swapped in - 1.3.6.1.4.1.2021.11.62
+    - name: ssRawSwapOut
+      oid: 1.3.6.1.4.1.2021.11.63
+      type: counter
+      help: Number of blocks swapped out - 1.3.6.1.4.1.2021.11.63
+    - name: ssCpuRawSteal
+      oid: 1.3.6.1.4.1.2021.11.64
+      type: counter
+      help: The number of 'ticks' (typically 1/100s) spent by the hypervisor code
+        to run other VMs even though the CPU in the current VM had something runnable
+        - 1.3.6.1.4.1.2021.11.64
+    - name: ssCpuRawGuest
+      oid: 1.3.6.1.4.1.2021.11.65
+      type: counter
+      help: The number of 'ticks' (typically 1/100s) spent by the CPU to run a virtual
+        CPU (guest) - 1.3.6.1.4.1.2021.11.65
+    - name: ssCpuRawGuestNice
+      oid: 1.3.6.1.4.1.2021.11.66
+      type: counter
+      help: The number of 'ticks' (typically 1/100s) spent by the CPU to run a niced
+        virtual CPU (guest) - 1.3.6.1.4.1.2021.11.66
+    - name: ssCpuNumCpus
+      oid: 1.3.6.1.4.1.2021.11.67
+      type: gauge
+      help: The number of processors, as counted by the agent - 1.3.6.1.4.1.2021.11.67
+    - name: diskIOIndex
+      oid: 1.3.6.1.4.1.2021.13.15.1.1.1
+      type: gauge
+      help: Reference index for each observed device. - 1.3.6.1.4.1.2021.13.15.1.1.1
+      indexes:
+      - labelname: diskIOIndex
+        type: gauge
+    - name: diskIODevice
+      oid: 1.3.6.1.4.1.2021.13.15.1.1.2
+      type: DisplayString
+      help: The name of the device we are counting/checking. - 1.3.6.1.4.1.2021.13.15.1.1.2
+      indexes:
+      - labelname: diskIOIndex
+        type: gauge
+    - name: diskIONRead
+      oid: 1.3.6.1.4.1.2021.13.15.1.1.3
+      type: counter
+      help: The number of bytes read from this device since boot. - 1.3.6.1.4.1.2021.13.15.1.1.3
+      indexes:
+      - labelname: diskIOIndex
+        type: gauge
+    - name: diskIONWritten
+      oid: 1.3.6.1.4.1.2021.13.15.1.1.4
+      type: counter
+      help: The number of bytes written to this device since boot. - 1.3.6.1.4.1.2021.13.15.1.1.4
+      indexes:
+      - labelname: diskIOIndex
+        type: gauge
+    - name: diskIOReads
+      oid: 1.3.6.1.4.1.2021.13.15.1.1.5
+      type: counter
+      help: The number of read accesses from this device since boot. - 1.3.6.1.4.1.2021.13.15.1.1.5
+      indexes:
+      - labelname: diskIOIndex
+        type: gauge
+    - name: diskIOWrites
+      oid: 1.3.6.1.4.1.2021.13.15.1.1.6
+      type: counter
+      help: The number of write accesses to this device since boot. - 1.3.6.1.4.1.2021.13.15.1.1.6
+      indexes:
+      - labelname: diskIOIndex
+        type: gauge
+    - name: diskIOLA1
+      oid: 1.3.6.1.4.1.2021.13.15.1.1.9
+      type: gauge
+      help: The 1 minute average load of disk (%) - 1.3.6.1.4.1.2021.13.15.1.1.9
+      indexes:
+      - labelname: diskIOIndex
+        type: gauge
+    - name: diskIOLA5
+      oid: 1.3.6.1.4.1.2021.13.15.1.1.10
+      type: gauge
+      help: The 5 minute average load of disk (%) - 1.3.6.1.4.1.2021.13.15.1.1.10
+      indexes:
+      - labelname: diskIOIndex
+        type: gauge
+    - name: diskIOLA15
+      oid: 1.3.6.1.4.1.2021.13.15.1.1.11
+      type: gauge
+      help: The 15 minute average load of disk (%) - 1.3.6.1.4.1.2021.13.15.1.1.11
+      indexes:
+      - labelname: diskIOIndex
+        type: gauge
+    - name: diskIONReadX
+      oid: 1.3.6.1.4.1.2021.13.15.1.1.12
+      type: counter
+      help: The number of bytes read from this device since boot. - 1.3.6.1.4.1.2021.13.15.1.1.12
+      indexes:
+      - labelname: diskIOIndex
+        type: gauge
+    - name: diskIONWrittenX
+      oid: 1.3.6.1.4.1.2021.13.15.1.1.13
+      type: counter
+      help: The number of bytes written to this device since boot. - 1.3.6.1.4.1.2021.13.15.1.1.13
+      indexes:
+      - labelname: diskIOIndex
+        type: gauge
+    - name: diskIOBusyTime
+      oid: 1.3.6.1.4.1.2021.13.15.1.1.14
+      type: counter
+      help: The number of usecs the drive has been busy since boot. - 1.3.6.1.4.1.2021.13.15.1.1.14
+      indexes:
+      - labelname: diskIOIndex
+        type: gauge
+    - name: memIndex
+      oid: 1.3.6.1.4.1.2021.4.1
+      type: gauge
+      help: Bogus Index - 1.3.6.1.4.1.2021.4.1
+    - name: memErrorName
+      oid: 1.3.6.1.4.1.2021.4.2
+      type: DisplayString
+      help: Bogus Name - 1.3.6.1.4.1.2021.4.2
+    - name: memTotalSwap
+      oid: 1.3.6.1.4.1.2021.4.3
+      type: gauge
+      help: The total amount of swap space configured for this host. - 1.3.6.1.4.1.2021.4.3
+    - name: memAvailSwap
+      oid: 1.3.6.1.4.1.2021.4.4
+      type: gauge
+      help: The amount of swap space currently unused or available. - 1.3.6.1.4.1.2021.4.4
+    - name: memTotalReal
+      oid: 1.3.6.1.4.1.2021.4.5
+      type: gauge
+      help: The total amount of real/physical memory installed on this host. - 1.3.6.1.4.1.2021.4.5
+    - name: memAvailReal
+      oid: 1.3.6.1.4.1.2021.4.6
+      type: gauge
+      help: The amount of real/physical memory currently unused or available. - 1.3.6.1.4.1.2021.4.6
+    - name: memTotalSwapTXT
+      oid: 1.3.6.1.4.1.2021.4.7
+      type: gauge
+      help: The total amount of swap space or virtual memory allocated for text pages
+        on this host - 1.3.6.1.4.1.2021.4.7
+    - name: memAvailSwapTXT
+      oid: 1.3.6.1.4.1.2021.4.8
+      type: gauge
+      help: The amount of swap space or virtual memory currently being used by text
+        pages on this host - 1.3.6.1.4.1.2021.4.8
+    - name: memTotalRealTXT
+      oid: 1.3.6.1.4.1.2021.4.9
+      type: gauge
+      help: The total amount of real/physical memory allocated for text pages on this
+        host - 1.3.6.1.4.1.2021.4.9
+    - name: memAvailRealTXT
+      oid: 1.3.6.1.4.1.2021.4.10
+      type: gauge
+      help: The amount of real/physical memory currently being used by text pages
+        on this host - 1.3.6.1.4.1.2021.4.10
+    - name: memTotalFree
+      oid: 1.3.6.1.4.1.2021.4.11
+      type: gauge
+      help: The total amount of memory free or available for use on this host - 1.3.6.1.4.1.2021.4.11
+    - name: memMinimumSwap
+      oid: 1.3.6.1.4.1.2021.4.12
+      type: gauge
+      help: The minimum amount of swap space expected to be kept free or available
+        during normal operation of this host - 1.3.6.1.4.1.2021.4.12
+    - name: memShared
+      oid: 1.3.6.1.4.1.2021.4.13
+      type: gauge
+      help: The total amount of real or virtual memory currently allocated for use
+        as shared memory - 1.3.6.1.4.1.2021.4.13
+    - name: memBuffer
+      oid: 1.3.6.1.4.1.2021.4.14
+      type: gauge
+      help: The total amount of real or virtual memory currently allocated for use
+        as memory buffers - 1.3.6.1.4.1.2021.4.14
+    - name: memCached
+      oid: 1.3.6.1.4.1.2021.4.15
+      type: gauge
+      help: The total amount of real or virtual memory currently allocated for use
+        as cached memory - 1.3.6.1.4.1.2021.4.15
+    - name: memUsedSwapTXT
+      oid: 1.3.6.1.4.1.2021.4.16
+      type: gauge
+      help: The amount of swap space or virtual memory currently being used by text
+        pages on this host - 1.3.6.1.4.1.2021.4.16
+    - name: memUsedRealTXT
+      oid: 1.3.6.1.4.1.2021.4.17
+      type: gauge
+      help: The amount of real/physical memory currently being used by text pages
+        on this host - 1.3.6.1.4.1.2021.4.17
+    - name: memTotalSwapX
+      oid: 1.3.6.1.4.1.2021.4.18
+      type: counter
+      help: The total amount of swap space configured for this host. - 1.3.6.1.4.1.2021.4.18
+    - name: memAvailSwapX
+      oid: 1.3.6.1.4.1.2021.4.19
+      type: counter
+      help: The amount of swap space currently unused or available. - 1.3.6.1.4.1.2021.4.19
+    - name: memTotalRealX
+      oid: 1.3.6.1.4.1.2021.4.20
+      type: counter
+      help: The total amount of real/physical memory installed on this host. - 1.3.6.1.4.1.2021.4.20
+    - name: memAvailRealX
+      oid: 1.3.6.1.4.1.2021.4.21
+      type: counter
+      help: The amount of real/physical memory currently unused or available. - 1.3.6.1.4.1.2021.4.21
+    - name: memTotalFreeX
+      oid: 1.3.6.1.4.1.2021.4.22
+      type: counter
+      help: The total amount of memory free or available for use on this host - 1.3.6.1.4.1.2021.4.22
+    - name: memMinimumSwapX
+      oid: 1.3.6.1.4.1.2021.4.23
+      type: counter
+      help: The minimum amount of swap space expected to be kept free or available
+        during normal operation of this host - 1.3.6.1.4.1.2021.4.23
+    - name: memSharedX
+      oid: 1.3.6.1.4.1.2021.4.24
+      type: counter
+      help: The total amount of real or virtual memory currently allocated for use
+        as shared memory - 1.3.6.1.4.1.2021.4.24
+    - name: memBufferX
+      oid: 1.3.6.1.4.1.2021.4.25
+      type: counter
+      help: The total amount of real or virtual memory currently allocated for use
+        as memory buffers - 1.3.6.1.4.1.2021.4.25
+    - name: memCachedX
+      oid: 1.3.6.1.4.1.2021.4.26
+      type: counter
+      help: The total amount of real or virtual memory currently allocated for use
+        as cached memory - 1.3.6.1.4.1.2021.4.26
+    - name: memSysAvail
+      oid: 1.3.6.1.4.1.2021.4.27
+      type: counter
+      help: The total amount of available memory, which is an estimate of how much
+        memory is available for starting new applications, without swapping - 1.3.6.1.4.1.2021.4.27
+    - name: memSwapError
+      oid: 1.3.6.1.4.1.2021.4.100
+      type: gauge
+      help: Indicates whether the amount of available swap space (as reported by 'memAvailSwap(4)'),
+        is less than the desired minimum (specified by 'memMinimumSwap(12)'). - 1.3.6.1.4.1.2021.4.100
+      enum_values:
+        0: noError
+        1: error
+    - name: memSwapErrorMsg
+      oid: 1.3.6.1.4.1.2021.4.101
+      type: DisplayString
+      help: Describes whether the amount of available swap space (as reported by 'memAvailSwap(4)'),
+        is less than the desired minimum (specified by 'memMinimumSwap(12)'). - 1.3.6.1.4.1.2021.4.101
+    - name: systemStatus
+      oid: 1.3.6.1.4.1.6574.1.1
+      type: gauge
+      help: Synology system status Each meanings of status represented describe below
+        - 1.3.6.1.4.1.6574.1.1
+    - name: temperature
+      oid: 1.3.6.1.4.1.6574.1.2
+      type: gauge
+      help: Synology system temperature The temperature of Disk Station uses Celsius
+        degree. - 1.3.6.1.4.1.6574.1.2
+    - name: powerStatus
+      oid: 1.3.6.1.4.1.6574.1.3
+      type: gauge
+      help: Synology power status Each meanings of status represented describe below
+        - 1.3.6.1.4.1.6574.1.3
+    - name: systemFanStatus
+      oid: 1.3.6.1.4.1.6574.1.4.1
+      type: gauge
+      help: Synology system fan status Each meanings of status represented describe
+        below - 1.3.6.1.4.1.6574.1.4.1
+    - name: cpuFanStatus
+      oid: 1.3.6.1.4.1.6574.1.4.2
+      type: gauge
+      help: Synology cpu fan status Each meanings of status represented describe below
+        - 1.3.6.1.4.1.6574.1.4.2
+    - name: modelName
+      oid: 1.3.6.1.4.1.6574.1.5.1
+      type: OctetString
+      help: The Model name of this NAS - 1.3.6.1.4.1.6574.1.5.1
+    - name: serialNumber
+      oid: 1.3.6.1.4.1.6574.1.5.2
+      type: OctetString
+      help: The serial number of this NAS - 1.3.6.1.4.1.6574.1.5.2
+    - name: version
+      oid: 1.3.6.1.4.1.6574.1.5.3
+      type: OctetString
+      help: The version of this DSM - 1.3.6.1.4.1.6574.1.5.3
+    - name: upgradeAvailable
+      oid: 1.3.6.1.4.1.6574.1.5.4
+      type: gauge
+      help: This oid is for checking whether there is a latest DSM can be upgraded
+        - 1.3.6.1.4.1.6574.1.5.4
+    - name: controllerNumber
+      oid: 1.3.6.1.4.1.6574.1.6
+      type: gauge
+      help: Synology system controller number Controller A(0) Controller B(1) - 1.3.6.1.4.1.6574.1.6
+    - name: diskIndex
+      oid: 1.3.6.1.4.1.6574.2.1.1.1
+      type: gauge
+      help: The index of disk table - 1.3.6.1.4.1.6574.2.1.1.1
+      indexes:
+      - labelname: diskIndex
+        type: gauge
+      lookups:
+      - labels:
+        - diskIndex
+        labelname: diskName
+        oid: 1.3.6.1.4.1.6574.2.1.1.12
+        type: OctetString
+    - name: diskID
+      oid: 1.3.6.1.4.1.6574.2.1.1.2
+      type: OctetString
+      help: Synology disk ID The ID of disk is assigned by disk Station. - 1.3.6.1.4.1.6574.2.1.1.2
+      indexes:
+      - labelname: diskIndex
+        type: gauge
+      lookups:
+      - labels:
+        - diskIndex
+        labelname: diskName
+        oid: 1.3.6.1.4.1.6574.2.1.1.12
+        type: OctetString
+    - name: diskModel
+      oid: 1.3.6.1.4.1.6574.2.1.1.3
+      type: OctetString
+      help: Synology disk model name The disk model name will be showed here. - 1.3.6.1.4.1.6574.2.1.1.3
+      indexes:
+      - labelname: diskIndex
+        type: gauge
+      lookups:
+      - labels:
+        - diskIndex
+        labelname: diskName
+        oid: 1.3.6.1.4.1.6574.2.1.1.12
+        type: OctetString
+    - name: diskType
+      oid: 1.3.6.1.4.1.6574.2.1.1.4
+      type: OctetString
+      help: Synology disk type The type of disk will be showed here, including SATA,
+        SSD and so on. - 1.3.6.1.4.1.6574.2.1.1.4
+      indexes:
+      - labelname: diskIndex
+        type: gauge
+      lookups:
+      - labels:
+        - diskIndex
+        labelname: diskName
+        oid: 1.3.6.1.4.1.6574.2.1.1.12
+        type: OctetString
+    - name: diskStatus
+      oid: 1.3.6.1.4.1.6574.2.1.1.5
+      type: gauge
+      help: Synology disk status Each meanings of status represented describe below
+        - 1.3.6.1.4.1.6574.2.1.1.5
+      indexes:
+      - labelname: diskIndex
+        type: gauge
+      lookups:
+      - labels:
+        - diskIndex
+        labelname: diskName
+        oid: 1.3.6.1.4.1.6574.2.1.1.12
+        type: OctetString
+    - name: diskTemperature
+      oid: 1.3.6.1.4.1.6574.2.1.1.6
+      type: gauge
+      help: Synology disk temperature The temperature of each disk uses Celsius degree.
+        - 1.3.6.1.4.1.6574.2.1.1.6
+      indexes:
+      - labelname: diskIndex
+        type: gauge
+      lookups:
+      - labels:
+        - diskIndex
+        labelname: diskName
+        oid: 1.3.6.1.4.1.6574.2.1.1.12
+        type: OctetString
+    - name: diskRole
+      oid: 1.3.6.1.4.1.6574.2.1.1.7
+      type: OctetString
+      help: Synology disk role The role of the disk in system - 1.3.6.1.4.1.6574.2.1.1.7
+      indexes:
+      - labelname: diskIndex
+        type: gauge
+      lookups:
+      - labels:
+        - diskIndex
+        labelname: diskName
+        oid: 1.3.6.1.4.1.6574.2.1.1.12
+        type: OctetString
+    - name: diskRetry
+      oid: 1.3.6.1.4.1.6574.2.1.1.8
+      type: gauge
+      help: Synology disk retry count The count of each disk connection retries. -
+        1.3.6.1.4.1.6574.2.1.1.8
+      indexes:
+      - labelname: diskIndex
+        type: gauge
+      lookups:
+      - labels:
+        - diskIndex
+        labelname: diskName
+        oid: 1.3.6.1.4.1.6574.2.1.1.12
+        type: OctetString
+    - name: diskBadSector
+      oid: 1.3.6.1.4.1.6574.2.1.1.9
+      type: gauge
+      help: Synology disk bad sector count The count of each disk I/O bad sector.
+        - 1.3.6.1.4.1.6574.2.1.1.9
+      indexes:
+      - labelname: diskIndex
+        type: gauge
+      lookups:
+      - labels:
+        - diskIndex
+        labelname: diskName
+        oid: 1.3.6.1.4.1.6574.2.1.1.12
+        type: OctetString
+    - name: diskIdentifyFail
+      oid: 1.3.6.1.4.1.6574.2.1.1.10
+      type: gauge
+      help: Synology disk identify fail count The count of each disk identify fails.
+        - 1.3.6.1.4.1.6574.2.1.1.10
+      indexes:
+      - labelname: diskIndex
+        type: gauge
+      lookups:
+      - labels:
+        - diskIndex
+        labelname: diskName
+        oid: 1.3.6.1.4.1.6574.2.1.1.12
+        type: OctetString
+    - name: diskRemainLife
+      oid: 1.3.6.1.4.1.6574.2.1.1.11
+      type: gauge
+      help: Synology disk remainLife The estimate remain life of each disk. - 1.3.6.1.4.1.6574.2.1.1.11
+      indexes:
+      - labelname: diskIndex
+        type: gauge
+      lookups:
+      - labels:
+        - diskIndex
+        labelname: diskName
+        oid: 1.3.6.1.4.1.6574.2.1.1.12
+        type: OctetString
+    - name: diskName
+      oid: 1.3.6.1.4.1.6574.2.1.1.12
+      type: OctetString
+      help: Synology disk name The name of disk which align to storage manager. -
+        1.3.6.1.4.1.6574.2.1.1.12
+      indexes:
+      - labelname: diskIndex
+        type: gauge
+      lookups:
+      - labels:
+        - diskIndex
+        labelname: diskName
+        oid: 1.3.6.1.4.1.6574.2.1.1.12
+        type: OctetString
+    - name: diskHealthStatus
+      oid: 1.3.6.1.4.1.6574.2.1.1.13
+      type: gauge
+      help: Synology disk health status Each meanings of status represented describe
+        below - 1.3.6.1.4.1.6574.2.1.1.13
+      indexes:
+      - labelname: diskIndex
+        type: gauge
+      lookups:
+      - labels:
+        - diskIndex
+        labelname: diskName
+        oid: 1.3.6.1.4.1.6574.2.1.1.12
+        type: OctetString
+    - name: raidIndex
+      oid: 1.3.6.1.4.1.6574.3.1.1.1
+      type: gauge
+      help: The index of raid table - 1.3.6.1.4.1.6574.3.1.1.1
+      indexes:
+      - labelname: raidIndex
+        type: gauge
+      lookups:
+      - labels:
+        - raidIndex
+        labelname: raidName
+        oid: 1.3.6.1.4.1.6574.3.1.1.2
+        type: OctetString
+    - name: raidName
+      oid: 1.3.6.1.4.1.6574.3.1.1.2
+      type: OctetString
+      help: Synology raid name The name of each raid will be showed here. - 1.3.6.1.4.1.6574.3.1.1.2
+      indexes:
+      - labelname: raidIndex
+        type: gauge
+      lookups:
+      - labels:
+        - raidIndex
+        labelname: raidName
+        oid: 1.3.6.1.4.1.6574.3.1.1.2
+        type: OctetString
+    - name: raidStatus
+      oid: 1.3.6.1.4.1.6574.3.1.1.3
+      type: gauge
+      help: Synology Raid status Each meanings of status represented describe below
+        - 1.3.6.1.4.1.6574.3.1.1.3
+      indexes:
+      - labelname: raidIndex
+        type: gauge
+      lookups:
+      - labels:
+        - raidIndex
+        labelname: raidName
+        oid: 1.3.6.1.4.1.6574.3.1.1.2
+        type: OctetString
+    - name: raidFreeSize
+      oid: 1.3.6.1.4.1.6574.3.1.1.4
+      type: counter
+      help: Synology raid freesize Free space in bytes. - 1.3.6.1.4.1.6574.3.1.1.4
+      indexes:
+      - labelname: raidIndex
+        type: gauge
+      lookups:
+      - labels:
+        - raidIndex
+        labelname: raidName
+        oid: 1.3.6.1.4.1.6574.3.1.1.2
+        type: OctetString
+    - name: raidTotalSize
+      oid: 1.3.6.1.4.1.6574.3.1.1.5
+      type: counter
+      help: Synology raid totalsize Total space in bytes. - 1.3.6.1.4.1.6574.3.1.1.5
+      indexes:
+      - labelname: raidIndex
+        type: gauge
+      lookups:
+      - labels:
+        - raidIndex
+        labelname: raidName
+        oid: 1.3.6.1.4.1.6574.3.1.1.2
+        type: OctetString
+    - name: raidHotspareCnt
+      oid: 1.3.6.1.4.1.6574.3.1.1.6
+      type: gauge
+      help: Synology raid hotspare Total hotspare disks count - 1.3.6.1.4.1.6574.3.1.1.6
+      indexes:
+      - labelname: raidIndex
+        type: gauge
+      lookups:
+      - labels:
+        - raidIndex
+        labelname: raidName
+        oid: 1.3.6.1.4.1.6574.3.1.1.2
+        type: OctetString
+    max_repetitions: 25
+    retries: 3
+    timeout: 5s
+  wd_pr4100:
+    walk:
+    - 1.3.6.1.2.1.25.2.3.1
+    - 1.3.6.1.4.1.2021.10
+    - 1.3.6.1.4.1.2021.11
+    - 1.3.6.1.4.1.2021.4
+    - 1.3.6.1.4.1.5127.1.1.1.10.1
+    get:
+    - 1.3.6.1.2.1.1.3.0
+    metrics:
+    - name: sysUpTime
+      oid: 1.3.6.1.2.1.1.3
+      type: gauge
+      help: The time (in hundredths of a second) since the network management portion
+        of the system was last re-initialized. - 1.3.6.1.2.1.1.3
+    - name: hrStorageIndex
+      oid: 1.3.6.1.2.1.25.2.3.1.1
+      type: gauge
+      help: A unique value for each logical storage area contained by the host. -
+        1.3.6.1.2.1.25.2.3.1.1
+      indexes:
+      - labelname: hrStorageIndex
+        type: gauge
+      lookups:
+      - labels:
+        - hrStorageIndex
+        labelname: hrStorageDescr
+        oid: 1.3.6.1.2.1.25.2.3.1.3
+        type: DisplayString
+    - name: hrStorageType
+      oid: 1.3.6.1.2.1.25.2.3.1.2
+      type: OctetString
+      help: The type of storage represented by this entry. - 1.3.6.1.2.1.25.2.3.1.2
+      indexes:
+      - labelname: hrStorageIndex
+        type: gauge
+      lookups:
+      - labels:
+        - hrStorageIndex
+        labelname: hrStorageDescr
+        oid: 1.3.6.1.2.1.25.2.3.1.3
+        type: DisplayString
+    - name: hrStorageDescr
+      oid: 1.3.6.1.2.1.25.2.3.1.3
+      type: DisplayString
+      help: A description of the type and instance of the storage described by this
+        entry. - 1.3.6.1.2.1.25.2.3.1.3
+      indexes:
+      - labelname: hrStorageIndex
+        type: gauge
+      lookups:
+      - labels:
+        - hrStorageIndex
+        labelname: hrStorageDescr
+        oid: 1.3.6.1.2.1.25.2.3.1.3
+        type: DisplayString
+    - name: hrStorageAllocationUnits
+      oid: 1.3.6.1.2.1.25.2.3.1.4
+      type: gauge
+      help: The size, in bytes, of the data objects allocated from this pool - 1.3.6.1.2.1.25.2.3.1.4
+      indexes:
+      - labelname: hrStorageIndex
+        type: gauge
+      lookups:
+      - labels:
+        - hrStorageIndex
+        labelname: hrStorageDescr
+        oid: 1.3.6.1.2.1.25.2.3.1.3
+        type: DisplayString
+    - name: hrStorageSize
+      oid: 1.3.6.1.2.1.25.2.3.1.5
+      type: gauge
+      help: The size of the storage represented by this entry, in units of hrStorageAllocationUnits
+        - 1.3.6.1.2.1.25.2.3.1.5
+      indexes:
+      - labelname: hrStorageIndex
+        type: gauge
+      lookups:
+      - labels:
+        - hrStorageIndex
+        labelname: hrStorageDescr
+        oid: 1.3.6.1.2.1.25.2.3.1.3
+        type: DisplayString
+    - name: hrStorageUsed
+      oid: 1.3.6.1.2.1.25.2.3.1.6
+      type: gauge
+      help: The amount of the storage represented by this entry that is allocated,
+        in units of hrStorageAllocationUnits. - 1.3.6.1.2.1.25.2.3.1.6
+      indexes:
+      - labelname: hrStorageIndex
+        type: gauge
+      lookups:
+      - labels:
+        - hrStorageIndex
+        labelname: hrStorageDescr
+        oid: 1.3.6.1.2.1.25.2.3.1.3
+        type: DisplayString
+    - name: hrStorageAllocationFailures
+      oid: 1.3.6.1.2.1.25.2.3.1.7
+      type: counter
+      help: The number of requests for storage represented by this entry that could
+        not be honored due to not enough storage - 1.3.6.1.2.1.25.2.3.1.7
+      indexes:
+      - labelname: hrStorageIndex
+        type: gauge
+      lookups:
+      - labels:
+        - hrStorageIndex
+        labelname: hrStorageDescr
+        oid: 1.3.6.1.2.1.25.2.3.1.3
+        type: DisplayString
+    - name: laIndex
+      oid: 1.3.6.1.4.1.2021.10.1.1
+      type: gauge
+      help: reference index/row number for each observed loadave. - 1.3.6.1.4.1.2021.10.1.1
+      indexes:
+      - labelname: laIndex
+        type: gauge
+    - name: laNames
+      oid: 1.3.6.1.4.1.2021.10.1.2
+      type: DisplayString
+      help: The list of loadave names we're watching. - 1.3.6.1.4.1.2021.10.1.2
+      indexes:
+      - labelname: laIndex
+        type: gauge
+    - name: laLoad
+      oid: 1.3.6.1.4.1.2021.10.1.3
+      type: DisplayString
+      help: The 1,5 and 15 minute load averages (one per row). - 1.3.6.1.4.1.2021.10.1.3
+      indexes:
+      - labelname: laIndex
+        type: gauge
+    - name: laConfig
+      oid: 1.3.6.1.4.1.2021.10.1.4
+      type: DisplayString
+      help: The watch point for load-averages to signal an error - 1.3.6.1.4.1.2021.10.1.4
+      indexes:
+      - labelname: laIndex
+        type: gauge
+    - name: laLoadInt
+      oid: 1.3.6.1.4.1.2021.10.1.5
+      type: gauge
+      help: The 1,5 and 15 minute load averages as an integer - 1.3.6.1.4.1.2021.10.1.5
+      indexes:
+      - labelname: laIndex
+        type: gauge
+    - name: laLoadFloat
+      oid: 1.3.6.1.4.1.2021.10.1.6
+      type: Float
+      help: The 1,5 and 15 minute load averages as an opaquely wrapped floating point
+        number. - 1.3.6.1.4.1.2021.10.1.6
+      indexes:
+      - labelname: laIndex
+        type: gauge
+    - name: laErrorFlag
+      oid: 1.3.6.1.4.1.2021.10.1.100
+      type: gauge
+      help: A Error flag to indicate the load-average has crossed its threshold value
+        defined in the snmpd.conf file - 1.3.6.1.4.1.2021.10.1.100
+      indexes:
+      - labelname: laIndex
+        type: gauge
+      enum_values:
+        0: noError
+        1: error
+    - name: laErrMessage
+      oid: 1.3.6.1.4.1.2021.10.1.101
+      type: DisplayString
+      help: An error message describing the load-average and its surpased watch-point
+        value. - 1.3.6.1.4.1.2021.10.1.101
+      indexes:
+      - labelname: laIndex
+        type: gauge
+    - name: ssIndex
+      oid: 1.3.6.1.4.1.2021.11.1
+      type: gauge
+      help: Bogus Index - 1.3.6.1.4.1.2021.11.1
+    - name: ssErrorName
+      oid: 1.3.6.1.4.1.2021.11.2
+      type: DisplayString
+      help: Bogus Name - 1.3.6.1.4.1.2021.11.2
+    - name: ssSwapIn
+      oid: 1.3.6.1.4.1.2021.11.3
+      type: gauge
+      help: The average amount of memory swapped in from disk, calculated over the
+        last minute. - 1.3.6.1.4.1.2021.11.3
+    - name: ssSwapOut
+      oid: 1.3.6.1.4.1.2021.11.4
+      type: gauge
+      help: The average amount of memory swapped out to disk, calculated over the
+        last minute. - 1.3.6.1.4.1.2021.11.4
+    - name: ssIOSent
+      oid: 1.3.6.1.4.1.2021.11.5
+      type: gauge
+      help: The average amount of data written to disk or other block device, calculated
+        over the last minute - 1.3.6.1.4.1.2021.11.5
+    - name: ssIOReceive
+      oid: 1.3.6.1.4.1.2021.11.6
+      type: gauge
+      help: The average amount of data read from disk or other block device, calculated
+        over the last minute - 1.3.6.1.4.1.2021.11.6
+    - name: ssSysInterrupts
+      oid: 1.3.6.1.4.1.2021.11.7
+      type: gauge
+      help: The average rate of interrupts processed (including the clock) calculated
+        over the last minute - 1.3.6.1.4.1.2021.11.7
+    - name: ssSysContext
+      oid: 1.3.6.1.4.1.2021.11.8
+      type: gauge
+      help: The average rate of context switches, calculated over the last minute
+        - 1.3.6.1.4.1.2021.11.8
+    - name: ssCpuUser
+      oid: 1.3.6.1.4.1.2021.11.9
+      type: gauge
+      help: The percentage of CPU time spent processing user-level code, calculated
+        over the last minute - 1.3.6.1.4.1.2021.11.9
+    - name: ssCpuSystem
+      oid: 1.3.6.1.4.1.2021.11.10
+      type: gauge
+      help: The percentage of CPU time spent processing system-level code, calculated
+        over the last minute - 1.3.6.1.4.1.2021.11.10
+    - name: ssCpuIdle
+      oid: 1.3.6.1.4.1.2021.11.11
+      type: gauge
+      help: The percentage of processor time spent idle, calculated over the last
+        minute - 1.3.6.1.4.1.2021.11.11
+    - name: ssCpuRawUser
+      oid: 1.3.6.1.4.1.2021.11.50
+      type: counter
+      help: The number of 'ticks' (typically 1/100s) spent processing user-level code
+        - 1.3.6.1.4.1.2021.11.50
+    - name: ssCpuRawNice
+      oid: 1.3.6.1.4.1.2021.11.51
+      type: counter
+      help: The number of 'ticks' (typically 1/100s) spent processing reduced-priority
+        code - 1.3.6.1.4.1.2021.11.51
+    - name: ssCpuRawSystem
+      oid: 1.3.6.1.4.1.2021.11.52
+      type: counter
+      help: The number of 'ticks' (typically 1/100s) spent processing system-level
+        code - 1.3.6.1.4.1.2021.11.52
+    - name: ssCpuRawIdle
+      oid: 1.3.6.1.4.1.2021.11.53
+      type: counter
+      help: The number of 'ticks' (typically 1/100s) spent idle - 1.3.6.1.4.1.2021.11.53
+    - name: ssCpuRawWait
+      oid: 1.3.6.1.4.1.2021.11.54
+      type: counter
+      help: The number of 'ticks' (typically 1/100s) spent waiting for IO - 1.3.6.1.4.1.2021.11.54
+    - name: ssCpuRawKernel
+      oid: 1.3.6.1.4.1.2021.11.55
+      type: counter
+      help: The number of 'ticks' (typically 1/100s) spent processing kernel-level
+        code - 1.3.6.1.4.1.2021.11.55
+    - name: ssCpuRawInterrupt
+      oid: 1.3.6.1.4.1.2021.11.56
+      type: counter
+      help: The number of 'ticks' (typically 1/100s) spent processing hardware interrupts
+        - 1.3.6.1.4.1.2021.11.56
+    - name: ssIORawSent
+      oid: 1.3.6.1.4.1.2021.11.57
+      type: counter
+      help: Number of blocks sent to a block device - 1.3.6.1.4.1.2021.11.57
+    - name: ssIORawReceived
+      oid: 1.3.6.1.4.1.2021.11.58
+      type: counter
+      help: Number of blocks received from a block device - 1.3.6.1.4.1.2021.11.58
+    - name: ssRawInterrupts
+      oid: 1.3.6.1.4.1.2021.11.59
+      type: counter
+      help: Number of interrupts processed - 1.3.6.1.4.1.2021.11.59
+    - name: ssRawContexts
+      oid: 1.3.6.1.4.1.2021.11.60
+      type: counter
+      help: Number of context switches - 1.3.6.1.4.1.2021.11.60
+    - name: ssCpuRawSoftIRQ
+      oid: 1.3.6.1.4.1.2021.11.61
+      type: counter
+      help: The number of 'ticks' (typically 1/100s) spent processing software interrupts
+        - 1.3.6.1.4.1.2021.11.61
+    - name: ssRawSwapIn
+      oid: 1.3.6.1.4.1.2021.11.62
+      type: counter
+      help: Number of blocks swapped in - 1.3.6.1.4.1.2021.11.62
+    - name: ssRawSwapOut
+      oid: 1.3.6.1.4.1.2021.11.63
+      type: counter
+      help: Number of blocks swapped out - 1.3.6.1.4.1.2021.11.63
+    - name: ssCpuRawSteal
+      oid: 1.3.6.1.4.1.2021.11.64
+      type: counter
+      help: The number of 'ticks' (typically 1/100s) spent by the hypervisor code
+        to run other VMs even though the CPU in the current VM had something runnable
+        - 1.3.6.1.4.1.2021.11.64
+    - name: ssCpuRawGuest
+      oid: 1.3.6.1.4.1.2021.11.65
+      type: counter
+      help: The number of 'ticks' (typically 1/100s) spent by the CPU to run a virtual
+        CPU (guest) - 1.3.6.1.4.1.2021.11.65
+    - name: ssCpuRawGuestNice
+      oid: 1.3.6.1.4.1.2021.11.66
+      type: counter
+      help: The number of 'ticks' (typically 1/100s) spent by the CPU to run a niced
+        virtual CPU (guest) - 1.3.6.1.4.1.2021.11.66
+    - name: ssCpuNumCpus
+      oid: 1.3.6.1.4.1.2021.11.67
+      type: gauge
+      help: The number of processors, as counted by the agent - 1.3.6.1.4.1.2021.11.67
+    - name: memIndex
+      oid: 1.3.6.1.4.1.2021.4.1
+      type: gauge
+      help: Bogus Index - 1.3.6.1.4.1.2021.4.1
+    - name: memErrorName
+      oid: 1.3.6.1.4.1.2021.4.2
+      type: DisplayString
+      help: Bogus Name - 1.3.6.1.4.1.2021.4.2
+    - name: memTotalSwap
+      oid: 1.3.6.1.4.1.2021.4.3
+      type: gauge
+      help: The total amount of swap space configured for this host. - 1.3.6.1.4.1.2021.4.3
+    - name: memAvailSwap
+      oid: 1.3.6.1.4.1.2021.4.4
+      type: gauge
+      help: The amount of swap space currently unused or available. - 1.3.6.1.4.1.2021.4.4
+    - name: memTotalReal
+      oid: 1.3.6.1.4.1.2021.4.5
+      type: gauge
+      help: The total amount of real/physical memory installed on this host. - 1.3.6.1.4.1.2021.4.5
+    - name: memAvailReal
+      oid: 1.3.6.1.4.1.2021.4.6
+      type: gauge
+      help: The amount of real/physical memory currently unused or available. - 1.3.6.1.4.1.2021.4.6
+    - name: memTotalSwapTXT
+      oid: 1.3.6.1.4.1.2021.4.7
+      type: gauge
+      help: The total amount of swap space or virtual memory allocated for text pages
+        on this host - 1.3.6.1.4.1.2021.4.7
+    - name: memAvailSwapTXT
+      oid: 1.3.6.1.4.1.2021.4.8
+      type: gauge
+      help: The amount of swap space or virtual memory currently being used by text
+        pages on this host - 1.3.6.1.4.1.2021.4.8
+    - name: memTotalRealTXT
+      oid: 1.3.6.1.4.1.2021.4.9
+      type: gauge
+      help: The total amount of real/physical memory allocated for text pages on this
+        host - 1.3.6.1.4.1.2021.4.9
+    - name: memAvailRealTXT
+      oid: 1.3.6.1.4.1.2021.4.10
+      type: gauge
+      help: The amount of real/physical memory currently being used by text pages
+        on this host - 1.3.6.1.4.1.2021.4.10
+    - name: memTotalFree
+      oid: 1.3.6.1.4.1.2021.4.11
+      type: gauge
+      help: The total amount of memory free or available for use on this host - 1.3.6.1.4.1.2021.4.11
+    - name: memMinimumSwap
+      oid: 1.3.6.1.4.1.2021.4.12
+      type: gauge
+      help: The minimum amount of swap space expected to be kept free or available
+        during normal operation of this host - 1.3.6.1.4.1.2021.4.12
+    - name: memShared
+      oid: 1.3.6.1.4.1.2021.4.13
+      type: gauge
+      help: The total amount of real or virtual memory currently allocated for use
+        as shared memory - 1.3.6.1.4.1.2021.4.13
+    - name: memBuffer
+      oid: 1.3.6.1.4.1.2021.4.14
+      type: gauge
+      help: The total amount of real or virtual memory currently allocated for use
+        as memory buffers - 1.3.6.1.4.1.2021.4.14
+    - name: memCached
+      oid: 1.3.6.1.4.1.2021.4.15
+      type: gauge
+      help: The total amount of real or virtual memory currently allocated for use
+        as cached memory - 1.3.6.1.4.1.2021.4.15
+    - name: memUsedSwapTXT
+      oid: 1.3.6.1.4.1.2021.4.16
+      type: gauge
+      help: The amount of swap space or virtual memory currently being used by text
+        pages on this host - 1.3.6.1.4.1.2021.4.16
+    - name: memUsedRealTXT
+      oid: 1.3.6.1.4.1.2021.4.17
+      type: gauge
+      help: The amount of real/physical memory currently being used by text pages
+        on this host - 1.3.6.1.4.1.2021.4.17
+    - name: memTotalSwapX
+      oid: 1.3.6.1.4.1.2021.4.18
+      type: counter
+      help: The total amount of swap space configured for this host. - 1.3.6.1.4.1.2021.4.18
+    - name: memAvailSwapX
+      oid: 1.3.6.1.4.1.2021.4.19
+      type: counter
+      help: The amount of swap space currently unused or available. - 1.3.6.1.4.1.2021.4.19
+    - name: memTotalRealX
+      oid: 1.3.6.1.4.1.2021.4.20
+      type: counter
+      help: The total amount of real/physical memory installed on this host. - 1.3.6.1.4.1.2021.4.20
+    - name: memAvailRealX
+      oid: 1.3.6.1.4.1.2021.4.21
+      type: counter
+      help: The amount of real/physical memory currently unused or available. - 1.3.6.1.4.1.2021.4.21
+    - name: memTotalFreeX
+      oid: 1.3.6.1.4.1.2021.4.22
+      type: counter
+      help: The total amount of memory free or available for use on this host - 1.3.6.1.4.1.2021.4.22
+    - name: memMinimumSwapX
+      oid: 1.3.6.1.4.1.2021.4.23
+      type: counter
+      help: The minimum amount of swap space expected to be kept free or available
+        during normal operation of this host - 1.3.6.1.4.1.2021.4.23
+    - name: memSharedX
+      oid: 1.3.6.1.4.1.2021.4.24
+      type: counter
+      help: The total amount of real or virtual memory currently allocated for use
+        as shared memory - 1.3.6.1.4.1.2021.4.24
+    - name: memBufferX
+      oid: 1.3.6.1.4.1.2021.4.25
+      type: counter
+      help: The total amount of real or virtual memory currently allocated for use
+        as memory buffers - 1.3.6.1.4.1.2021.4.25
+    - name: memCachedX
+      oid: 1.3.6.1.4.1.2021.4.26
+      type: counter
+      help: The total amount of real or virtual memory currently allocated for use
+        as cached memory - 1.3.6.1.4.1.2021.4.26
+    - name: memSysAvail
+      oid: 1.3.6.1.4.1.2021.4.27
+      type: counter
+      help: The total amount of available memory, which is an estimate of how much
+        memory is available for starting new applications, without swapping - 1.3.6.1.4.1.2021.4.27
+    - name: memSwapError
+      oid: 1.3.6.1.4.1.2021.4.100
+      type: gauge
+      help: Indicates whether the amount of available swap space (as reported by 'memAvailSwap(4)'),
+        is less than the desired minimum (specified by 'memMinimumSwap(12)'). - 1.3.6.1.4.1.2021.4.100
+      enum_values:
+        0: noError
+        1: error
+    - name: memSwapErrorMsg
+      oid: 1.3.6.1.4.1.2021.4.101
+      type: DisplayString
+      help: Describes whether the amount of available swap space (as reported by 'memAvailSwap(4)'),
+        is less than the desired minimum (specified by 'memMinimumSwap(12)'). - 1.3.6.1.4.1.2021.4.101
+    - name: mycloudpr4100AgentVer
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.1
+      type: DisplayString
+      help: Version information for the agent of SNMP of MYCLOUDPR4100. - 1.3.6.1.4.1.5127.1.1.1.10.1.1
+    - name: mycloudpr4100SoftwareVersion
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.2
+      type: DisplayString
+      help: The device software version. - 1.3.6.1.4.1.5127.1.1.1.10.1.2
+    - name: mycloudpr4100HostName
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.3
+      type: DisplayString
+      help: The device host name. - 1.3.6.1.4.1.5127.1.1.1.10.1.3
+    - name: mycloudpr4100FTPServer
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.5
+      type: DisplayString
+      help: Ftp Server status - 1.3.6.1.4.1.5127.1.1.1.10.1.5
+    - name: mycloudpr4100NetType
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.6
+      type: DisplayString
+      help: The Network type - 1.3.6.1.4.1.5127.1.1.1.10.1.6
+    - name: mycloudpr4100Temperature
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.7
+      type: DisplayString
+      help: The temperature of the system. - 1.3.6.1.4.1.5127.1.1.1.10.1.7
+      regex_extracts:
+        "":
+        - value: $1
+          regex: ^(?:^\s*([0-9.]+).*)$
+    - name: mycloudpr4100FanStatus
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.8
+      type: DisplayString
+      help: The status of the fan0. - 1.3.6.1.4.1.5127.1.1.1.10.1.8
+    - name: mycloudpr4100VolumeNum
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.9.1.1
+      type: gauge
+      help: Instance number of the volume entry. - 1.3.6.1.4.1.5127.1.1.1.10.1.9.1.1
+      indexes:
+      - labelname: mycloudpr4100VolumeNum
+        type: gauge
+      lookups:
+      - labels:
+        - mycloudpr4100VolumeNum
+        labelname: mycloudpr4100VolumeName
+        oid: 1.3.6.1.4.1.5127.1.1.1.10.1.9.1.2
+        type: DisplayString
+    - name: mycloudpr4100VolumeName
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.9.1.2
+      type: DisplayString
+      help: The name of the volume. - 1.3.6.1.4.1.5127.1.1.1.10.1.9.1.2
+      indexes:
+      - labelname: mycloudpr4100VolumeNum
+        type: gauge
+      lookups:
+      - labels:
+        - mycloudpr4100VolumeNum
+        labelname: mycloudpr4100VolumeName
+        oid: 1.3.6.1.4.1.5127.1.1.1.10.1.9.1.2
+        type: DisplayString
+    - name: mycloudpr4100VolumeFsType
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.9.1.3
+      type: DisplayString
+      help: The type of file system of the volume - 1.3.6.1.4.1.5127.1.1.1.10.1.9.1.3
+      indexes:
+      - labelname: mycloudpr4100VolumeNum
+        type: gauge
+      lookups:
+      - labels:
+        - mycloudpr4100VolumeNum
+        labelname: mycloudpr4100VolumeName
+        oid: 1.3.6.1.4.1.5127.1.1.1.10.1.9.1.2
+        type: DisplayString
+    - name: mycloudpr4100VolumeRaidLevel
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.9.1.4
+      type: DisplayString
+      help: The RAID level of the volume - 1.3.6.1.4.1.5127.1.1.1.10.1.9.1.4
+      indexes:
+      - labelname: mycloudpr4100VolumeNum
+        type: gauge
+      lookups:
+      - labels:
+        - mycloudpr4100VolumeNum
+        labelname: mycloudpr4100VolumeName
+        oid: 1.3.6.1.4.1.5127.1.1.1.10.1.9.1.2
+        type: DisplayString
+    - name: mycloudpr4100VolumeSize
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.9.1.5
+      type: DisplayString
+      help: The size of the volume in bytes. - 1.3.6.1.4.1.5127.1.1.1.10.1.9.1.5
+      indexes:
+      - labelname: mycloudpr4100VolumeNum
+        type: gauge
+      lookups:
+      - labels:
+        - mycloudpr4100VolumeNum
+        labelname: mycloudpr4100VolumeName
+        oid: 1.3.6.1.4.1.5127.1.1.1.10.1.9.1.2
+        type: DisplayString
+      regex_extracts:
+        "":
+        - value: $1
+          regex: ^(?:^\s*([0-9.]+).*)$
+    - name: mycloudpr4100VolumeFreeSpace
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.9.1.6
+      type: DisplayString
+      help: Free space on the volume in bytes. - 1.3.6.1.4.1.5127.1.1.1.10.1.9.1.6
+      indexes:
+      - labelname: mycloudpr4100VolumeNum
+        type: gauge
+      lookups:
+      - labels:
+        - mycloudpr4100VolumeNum
+        labelname: mycloudpr4100VolumeName
+        oid: 1.3.6.1.4.1.5127.1.1.1.10.1.9.1.2
+        type: DisplayString
+      regex_extracts:
+        "":
+        - value: $1
+          regex: ^(?:^\s*([0-9.]+).*)$
+    - name: mycloudpr4100DiskNum
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.10.1.1
+      type: gauge
+      help: Instance number of the disk entry. - 1.3.6.1.4.1.5127.1.1.1.10.1.10.1.1
+      indexes:
+      - labelname: mycloudpr4100DiskNum
+        type: gauge
+      lookups:
+      - labels:
+        - mycloudpr4100DiskNum
+        labelname: mycloudpr4100DiskModel
+        oid: 1.3.6.1.4.1.5127.1.1.1.10.1.10.1.3
+        type: DisplayString
+    - name: mycloudpr4100DiskVendor
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.10.1.2
+      type: DisplayString
+      help: The vendor of the disk drive. - 1.3.6.1.4.1.5127.1.1.1.10.1.10.1.2
+      indexes:
+      - labelname: mycloudpr4100DiskNum
+        type: gauge
+      lookups:
+      - labels:
+        - mycloudpr4100DiskNum
+        labelname: mycloudpr4100DiskModel
+        oid: 1.3.6.1.4.1.5127.1.1.1.10.1.10.1.3
+        type: DisplayString
+    - name: mycloudpr4100DiskModel
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.10.1.3
+      type: DisplayString
+      help: The disk drive's model name. - 1.3.6.1.4.1.5127.1.1.1.10.1.10.1.3
+      indexes:
+      - labelname: mycloudpr4100DiskNum
+        type: gauge
+      lookups:
+      - labels:
+        - mycloudpr4100DiskNum
+        labelname: mycloudpr4100DiskModel
+        oid: 1.3.6.1.4.1.5127.1.1.1.10.1.10.1.3
+        type: DisplayString
+    - name: mycloudpr4100DiskSerialNumber
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.10.1.4
+      type: DisplayString
+      help: The disk drive's serial number. - 1.3.6.1.4.1.5127.1.1.1.10.1.10.1.4
+      indexes:
+      - labelname: mycloudpr4100DiskNum
+        type: gauge
+      lookups:
+      - labels:
+        - mycloudpr4100DiskNum
+        labelname: mycloudpr4100DiskModel
+        oid: 1.3.6.1.4.1.5127.1.1.1.10.1.10.1.3
+        type: DisplayString
+    - name: mycloudpr4100DiskTemperature
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.10.1.5
+      type: DisplayString
+      help: The centigrade temperature of this disk. - 1.3.6.1.4.1.5127.1.1.1.10.1.10.1.5
+      indexes:
+      - labelname: mycloudpr4100DiskNum
+        type: gauge
+      lookups:
+      - labels:
+        - mycloudpr4100DiskNum
+        labelname: mycloudpr4100DiskModel
+        oid: 1.3.6.1.4.1.5127.1.1.1.10.1.10.1.3
+        type: DisplayString
+      regex_extracts:
+        "":
+        - value: $1
+          regex: ^(?:^\s*([0-9.]+).*)$
+    - name: mycloudpr4100DiskCapacity
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.10.1.6
+      type: DisplayString
+      help: The capacity of the disk in GB. - 1.3.6.1.4.1.5127.1.1.1.10.1.10.1.6
+      indexes:
+      - labelname: mycloudpr4100DiskNum
+        type: gauge
+      lookups:
+      - labels:
+        - mycloudpr4100DiskNum
+        labelname: mycloudpr4100DiskModel
+        oid: 1.3.6.1.4.1.5127.1.1.1.10.1.10.1.3
+        type: DisplayString
+    - name: mycloudpr4100UPSNum
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.11.1.1
+      type: gauge
+      help: Instance number of the UPS entry. - 1.3.6.1.4.1.5127.1.1.1.10.1.11.1.1
+      indexes:
+      - labelname: mycloudpr4100UPSNum
+        type: gauge
+    - name: mycloudpr4100UPSMode
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.11.1.2
+      type: DisplayString
+      help: The mode of the UPS - 1.3.6.1.4.1.5127.1.1.1.10.1.11.1.2
+      indexes:
+      - labelname: mycloudpr4100UPSNum
+        type: gauge
+    - name: mycloudpr4100UPSManufacturer
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.11.1.3
+      type: DisplayString
+      help: The manufacturer of the UPS. - 1.3.6.1.4.1.5127.1.1.1.10.1.11.1.3
+      indexes:
+      - labelname: mycloudpr4100UPSNum
+        type: gauge
+    - name: mycloudpr4100UPSProduct
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.11.1.4
+      type: DisplayString
+      help: The product name of the UPS. - 1.3.6.1.4.1.5127.1.1.1.10.1.11.1.4
+      indexes:
+      - labelname: mycloudpr4100UPSNum
+        type: gauge
+    - name: mycloudpr4100UPSBatteryCharge
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.11.1.5
+      type: DisplayString
+      help: The battery charge of the UPS. - 1.3.6.1.4.1.5127.1.1.1.10.1.11.1.5
+      indexes:
+      - labelname: mycloudpr4100UPSNum
+        type: gauge
+    - name: mycloudpr4100UPSStatus
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.11.1.6
+      type: DisplayString
+      help: The status of this UPS. - 1.3.6.1.4.1.5127.1.1.1.10.1.11.1.6
+      indexes:
+      - labelname: mycloudpr4100UPSNum
+        type: gauge
+    - name: notifyVolumeNum
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.200.200
+      type: gauge
+      help: Instance number of the volume entry. - 1.3.6.1.4.1.5127.1.1.1.10.1.200.200
+    - name: notifyUPSBatteryCharge
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.200.201
+      type: gauge
+      help: The battery charge percentage. - 1.3.6.1.4.1.5127.1.1.1.10.1.200.201
+    - name: notifyBayNum
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.200.202
+      type: gauge
+      help: The bay number. - 1.3.6.1.4.1.5127.1.1.1.10.1.200.202
+    - name: notifyPercent
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.200.203
+      type: gauge
+      help: Percentage of completion. - 1.3.6.1.4.1.5127.1.1.1.10.1.200.203
+    - name: notifyMinutes
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.200.204
+      type: gauge
+      help: Estimated time of completion. - 1.3.6.1.4.1.5127.1.1.1.10.1.200.204
+    - name: notifyPowerSupportNum
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.200.205
+      type: gauge
+      help: Instance number of the power support entry. - 1.3.6.1.4.1.5127.1.1.1.10.1.200.205
+    - name: notifyInterfaceNum
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.200.206
+      type: gauge
+      help: Instance number of the network interface. - 1.3.6.1.4.1.5127.1.1.1.10.1.200.206
+    - name: notifyVendor
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.200.210
+      type: DisplayString
+      help: The vendor name of the USB device. - 1.3.6.1.4.1.5127.1.1.1.10.1.200.210
+    - name: notifyModel
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.200.211
+      type: DisplayString
+      help: The model of the USB device. - 1.3.6.1.4.1.5127.1.1.1.10.1.200.211
+    - name: notifySerialNumber
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.200.212
+      type: DisplayString
+      help: The serial number of the USB device. - 1.3.6.1.4.1.5127.1.1.1.10.1.200.212
+    - name: notifyFileSystem
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.200.213
+      type: DisplayString
+      help: The file system of the USB device. - 1.3.6.1.4.1.5127.1.1.1.10.1.200.213
+    - name: notifyLabel
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.200.214
+      type: DisplayString
+      help: The label of the USB device. - 1.3.6.1.4.1.5127.1.1.1.10.1.200.214
+    - name: notifyUserName
+      oid: 1.3.6.1.4.1.5127.1.1.1.10.1.200.215
+      type: DisplayString
+      help: User name. - 1.3.6.1.4.1.5127.1.1.1.10.1.200.215
+    max_repetitions: 10
+    retries: 3
+    timeout: 5s
