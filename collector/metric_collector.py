@@ -18,7 +18,12 @@ USERNAME = os.getenv("COLLECTOR_USERNAME", "collector")
 PASSWORD = os.getenv("COLLECTOR_PASSWORD", "collector123")
 INTERVAL = int(os.getenv("COLLECTOR_INTERVAL_SECONDS", 60))
 USE_MOCK_METRICS = os.getenv("USE_MOCK_METRICS", "false").lower() == "true"
-NAS_TARGETS_STR = os.getenv("NAS_TARGETS", "synology-ds1522:192.168.24.5,wd-pr4100:192.168.24.4")
+SNMP_EXPORTER_URL = os.getenv("SNMP_EXPORTER_URL", "").strip() or None
+SNMP_DEFAULT_MODULE = os.getenv("SNMP_DEFAULT_MODULE", "if_mib").strip()
+NAS_TARGETS_STR = os.getenv(
+    "NAS_TARGETS",
+    "synology-ds1522|192.168.24.5|synology_nas,wd-pr4100|192.168.24.4|wd_pr4100",
+)
 CEPH_METRICS_URL = os.getenv("CEPH_METRICS_URL", "http://192.168.24.6:9283/metrics")
 
 class MetricCollector:
@@ -29,11 +34,43 @@ class MetricCollector:
         self.interval = INTERVAL
         self.use_mock_metrics = USE_MOCK_METRICS
         self.token = None
-        self.nas_targets = []
-        for target in NAS_TARGETS_STR.split(","):
-            if ":" in target:
-                sid, ip = target.split(":", 1)
-                self.nas_targets.append({"id": sid, "ip": ip})
+        self.nas_targets = self._parse_nas_targets(NAS_TARGETS_STR)
+
+    def _parse_nas_targets(self, raw_targets: str) -> list[dict]:
+        """Parse NAS_TARGETS into source id, IP, exporter module, and profile.
+
+        Preferred format:
+            source_id|ip_address|module_name
+
+        Legacy format is still accepted for compatibility:
+            source_id:ip_address
+        """
+        targets = []
+        for raw_target in raw_targets.split(","):
+            target = raw_target.strip()
+            if not target:
+                continue
+
+            if "|" in target:
+                parts = [part.strip() for part in target.split("|")]
+                if len(parts) < 2 or not parts[0] or not parts[1]:
+                    logger.warning("Skipping invalid NAS target: %s", target)
+                    continue
+                source_id = parts[0]
+                ip = parts[1]
+                module = parts[2] if len(parts) >= 3 and parts[2] else SNMP_DEFAULT_MODULE
+                profile = parts[3] if len(parts) >= 4 and parts[3] else None
+            elif ":" in target:
+                source_id, ip = [part.strip() for part in target.split(":", 1)]
+                module = SNMP_DEFAULT_MODULE
+                profile = None
+            else:
+                logger.warning("Skipping invalid NAS target: %s", target)
+                continue
+
+            targets.append({"id": source_id, "ip": ip, "module": module, "profile": profile})
+
+        return targets
 
     def login(self):
         """Login to the API to obtain JWT token."""
@@ -112,7 +149,13 @@ class MetricCollector:
                 if self.use_mock_metrics:
                     metrics = get_mock_nas_metrics(nas["id"])
                 else:
-                    metrics = get_snmp_nas_metrics(nas["id"], nas["ip"])
+                    metrics = get_snmp_nas_metrics(
+                        nas["id"],
+                        nas["ip"],
+                        exporter_url=SNMP_EXPORTER_URL,
+                        module=nas.get("module"),
+                        profile=nas.get("profile"),
+                    )
                 
                 payload = {
                     "source_type": "nas",
@@ -186,7 +229,13 @@ class MetricCollector:
         return False
 
     def start(self):
-        logger.info(f"Starting Collector (Mock={self.use_mock_metrics}). Interval: {self.interval}s")
+        exporter_mode = "centralized" if SNMP_EXPORTER_URL else "legacy-per-nas"
+        logger.info(
+            "Starting Collector (Mock=%s, SNMP=%s). Interval: %ss",
+            self.use_mock_metrics,
+            exporter_mode,
+            self.interval,
+        )
         while True:
             self.run_once()
             

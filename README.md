@@ -14,7 +14,8 @@ langsung.
 |---|---|
 | `api/` | FastAPI pusat data: auth, backup logs, monitoring, reports, user management. |
 | `web-dashboard/` | React SPA yang disajikan oleh Nginx. |
-| `collector/` | Daemon Python untuk mengirim metrik NAS/Ceph ke API. |
+| `collector/` | Daemon Python untuk membaca SNMP exporter/Ceph metrics dan mengirim metrik ke API. |
+| `snmp-exporter/` | Template konfigurasi SNMP Exporter untuk Synology dan WD PR4100. |
 | `nas-scripts/` | Reporter di NAS untuk membaca snapshot Kopia dan mengirim hasil backup ke API. |
 | `postgres` | Database utama untuk user, log backup, metric, report metadata, dan token revocation. |
 
@@ -37,6 +38,13 @@ NAS Kopia Reporter ── POST /api/logs/ingest ─┐
 Metric Collector ─ POST /api/monitor/ingest ├── FastAPI API ── PostgreSQL
                                              │
 Web Dashboard ───── GET/POST/PATCH /api/* ──┘
+```
+
+Untuk monitoring NAS production, NAS cukup expose SNMP UDP/161. Collector tidak
+query SNMP langsung; collector membaca SNMP Exporter:
+
+```text
+NAS SNMP ── UDP/161 ──> SNMP Exporter ── /snmp?target=<ip>&module=<module> ──> Collector
 ```
 
 Data waktu disimpan dan dibandingkan sebagai UTC. Tampilan dashboard, filter
@@ -71,6 +79,9 @@ nas-backup-monitor/
 │   ├── metric_collector.py
 │   ├── snmp_collector.py
 │   └── ceph_collector.py
+├── snmp-exporter/
+│   ├── generator.yml     # Template module Synology/WD untuk snmp_exporter
+│   └── mibs/             # Lokasi sementara MIB saat generate snmp.yml
 ├── nas-scripts/
 │   ├── kopia_snapshot_reporter.sh
 │   ├── kopia_reporter.py
@@ -130,7 +141,9 @@ Semua konfigurasi utama berada di `.env`.
 | `COLLECTOR_PASSWORD` | Password akun collector. | Jangan commit nilai asli. |
 | `COLLECTOR_INTERVAL_SECONDS` | Interval polling metric. | Default 60 detik. |
 | `USE_MOCK_METRICS` | Aktifkan metric dummy. | Cocok untuk demo. |
-| `NAS_TARGETS` | Target NAS untuk collector. | Format `source_id:ip`. |
+| `SNMP_EXPORTER_URL` | Endpoint SNMP Exporter terpusat. | Contoh `http://host:9116/snmp`. |
+| `SNMP_DEFAULT_MODULE` | Module fallback SNMP Exporter. | Default `if_mib`. |
+| `NAS_TARGETS` | Target NAS untuk collector. | Format `source_id\|ip\|module`. |
 | `CEPH_METRICS_URL` | Endpoint Prometheus Ceph. | Contoh `http://host:9283/metrics`. |
 
 Contoh hardening production:
@@ -188,6 +201,37 @@ Dokumentasi lengkap tersedia di Swagger: `http://localhost:8000/docs`.
 
 Timestamp request harus membawa timezone offset eksplisit, misalnya
 `2026-07-10T09:00:00+07:00` atau `2026-07-10T02:00:00Z`.
+
+## Workflow SNMP monitoring NAS
+
+Production direkomendasikan memakai SNMP Exporter terpusat di server Linux yang
+bisa menjangkau semua NAS.
+
+Prinsipnya:
+
+1. Synology/WD hanya membuka SNMP UDP/161 ke server SNMP Exporter.
+2. SNMP Exporter memakai module sesuai tipe NAS:
+   - `synology_nas`
+   - `wd_pr4100`
+3. Collector membaca endpoint HTTP exporter:
+   - `/snmp?target=<ip_synology>&module=synology_nas`
+   - `/snmp?target=<ip_wd>&module=wd_pr4100`
+4. Collector menormalisasi hasilnya menjadi metric dashboard:
+   - `cpu_usage`
+   - `ram_used_pct`
+   - `disk_used_pct`
+   - `temperature`
+   - `system_uptime`
+   - `snmp_reachable`
+
+Contoh konfigurasi collector:
+
+```env
+SNMP_EXPORTER_URL=http://snmp-exporter.example.lan:9116/snmp
+NAS_TARGETS=synology-ds1522|192.168.24.5|synology_nas,wd-pr4100|192.168.24.4|wd_pr4100
+```
+
+Template generator SNMP Exporter ada di [snmp-exporter/README.md](snmp-exporter/README.md).
 
 ## Workflow NAS reporter
 

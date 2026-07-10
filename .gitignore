@@ -120,6 +120,11 @@ nas-scripts/.env
 nas-scripts/dead-letter/
 nas-scripts/tmp/
 
+# SNMP exporter generated/runtime config may contain SNMP auth material.
+snmp-exporter/snmp.yml
+snmp-exporter/*.log
+snmp-exporter/.secrets/
+
 # =========================
 # Security - NEVER commit
 # =========================

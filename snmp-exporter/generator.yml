@@ -1,0 +1,87 @@
+# Template generator.yml for Prometheus snmp_exporter.
+#
+# Replace auth values before generating snmp.yml. Do not commit real SNMP
+# community strings, SNMPv3 passwords, or the generated production snmp.yml.
+
+auths:
+  kkp_snmp_v2:
+    version: 2
+    community: CHANGE_ME_SNMP_COMMUNITY
+
+modules:
+  synology_nas:
+    # Synology needs both standard Linux SNMP MIBs and Synology vendor MIBs.
+    walk:
+      - 1.3.6.1.2.1.1.3          # SNMPv2-MIB::sysUpTime
+      - 1.3.6.1.4.1.2021.10      # UCD-SNMP-MIB::laTable
+      - 1.3.6.1.4.1.2021.11      # UCD-SNMP-MIB::ssCpu*
+      - 1.3.6.1.4.1.2021.4       # UCD-SNMP-MIB::memory
+      - 1.3.6.1.2.1.25.2.3.1     # HOST-RESOURCES-MIB::hrStorageTable
+      - 1.3.6.1.4.1.2021.13.15   # UCD-DISKIO-MIB::diskIOTable
+      - 1.3.6.1.4.1.6574.1       # SYNOLOGY-SYSTEM-MIB::synoSystem
+      - 1.3.6.1.4.1.6574.2       # SYNOLOGY-DISK-MIB::synoDisk
+      - 1.3.6.1.4.1.6574.3       # SYNOLOGY-RAID-MIB::synoRaid
+    max_repetitions: 25
+    retries: 3
+    timeout: 5s
+    lookups:
+      # Keep readable labels for storage, RAID, and disk rows.
+      - source_indexes: [hrStorageIndex]
+        lookup: hrStorageDescr
+        drop_source_indexes: false
+      - source_indexes: [raidIndex]
+        lookup: raidName
+        drop_source_indexes: false
+      - source_indexes: [diskIndex]
+        lookup: diskName
+        drop_source_indexes: false
+
+  wd_pr4100:
+    # WD PR4100 vendor MIB contains temperature, fan, volume, disk, and UPS data.
+    walk:
+      - 1.3.6.1.2.1.1.3              # SNMPv2-MIB::sysUpTime
+      - 1.3.6.1.4.1.2021.10          # UCD-SNMP-MIB::laTable, if exposed
+      - 1.3.6.1.4.1.2021.11          # UCD-SNMP-MIB::ssCpu*, if exposed
+      - 1.3.6.1.4.1.2021.4           # UCD-SNMP-MIB::memory, if exposed
+      - 1.3.6.1.2.1.25.2.3.1         # HOST-RESOURCES-MIB::hrStorageTable, if exposed
+      - 1.3.6.1.4.1.5127.1.1.1.10.1  # MYCLOUDPR4100-MIB::nasAgent
+    max_repetitions: 10
+    retries: 3
+    timeout: 5s
+    lookups:
+      - source_indexes: [hrStorageIndex]
+        lookup: hrStorageDescr
+        drop_source_indexes: false
+      - source_indexes: [mycloudpr4100VolumeNum]
+        lookup: mycloudpr4100VolumeName
+        drop_source_indexes: false
+      - source_indexes: [mycloudpr4100DiskNum]
+        lookup: mycloudpr4100DiskModel
+        drop_source_indexes: false
+    overrides:
+      # WD exposes several numeric values as DisplayString. regex_extracts turns
+      # strings such as "45" or "45 C" into numeric gauge samples.
+      mycloudpr4100Temperature:
+        type: DisplayString
+        regex_extracts:
+          "":
+            - regex: '^\s*([0-9.]+).*'
+              value: '$1'
+      mycloudpr4100VolumeSize:
+        type: DisplayString
+        regex_extracts:
+          "":
+            - regex: '^\s*([0-9.]+).*'
+              value: '$1'
+      mycloudpr4100VolumeFreeSpace:
+        type: DisplayString
+        regex_extracts:
+          "":
+            - regex: '^\s*([0-9.]+).*'
+              value: '$1'
+      mycloudpr4100DiskTemperature:
+        type: DisplayString
+        regex_extracts:
+          "":
+            - regex: '^\s*([0-9.]+).*'
+              value: '$1'
