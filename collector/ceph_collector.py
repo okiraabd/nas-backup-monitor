@@ -52,7 +52,7 @@ def get_prometheus_ceph_metrics(metrics_url: str) -> list[dict]:
     result = []
 
     # Health status (0=OK, 1=WARN, 2=ERR)
-    health_val = _get_single(metrics, "ceph_health_status", 2.0)
+    health_val = _get_single(metrics, ("ceph_health_status",), 2.0)
     if health_val == 0.0:
         health_str = "HEALTH_OK"
     elif health_val == 1.0:
@@ -76,8 +76,8 @@ def get_prometheus_ceph_metrics(metrics_url: str) -> list[dict]:
     result.append({"name": "osd_total", "value": int(osd_total), "unit": "count"})
 
     # Storage usage
-    total_bytes = _get_single(metrics, "ceph_cluster_total_bytes", 0)
-    used_bytes = _get_single(metrics, "ceph_cluster_total_used_bytes", 0)
+    total_bytes = _get_single(metrics, ("ceph_cluster_total_bytes",), 0)
+    used_bytes = _get_single(metrics, ("ceph_cluster_total_used_bytes",), 0)
     result.append({"name": "storage_total_bytes", "value": total_bytes, "unit": "bytes"})
     result.append({"name": "storage_used_bytes", "value": used_bytes, "unit": "bytes"})
 
