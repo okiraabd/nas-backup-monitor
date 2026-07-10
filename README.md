@@ -119,8 +119,8 @@ Container:
 | Container | Fungsi | Port host |
 |---|---|---|
 | `bm_postgres` | PostgreSQL | `${POSTGRES_HOST_PORT:-5433}` |
-| `bm_api` | FastAPI + Alembic migration | `8000` |
-| `bm_web` | Nginx static web dashboard | `80` |
+| `bm_api` | FastAPI + Alembic migration | `${API_HOST_PORT:-8000}` |
+| `bm_web` | Nginx static web dashboard | `${WEB_HOST_PORT:-80}` |
 | `bm_collector` | Metric collector daemon | internal only |
 
 ## Environment penting
@@ -131,6 +131,9 @@ Semua konfigurasi utama berada di `.env`.
 |---|---|---|
 | `APP_ENV` | Mode aplikasi: `development` atau `production`. | Production mengaktifkan safety check. |
 | `APP_TIMEZONE` | Timezone bisnis/tampilan. | Default `Asia/Jakarta`. |
+| `WEB_HOST_PORT` | Port dashboard di host. | Default `80`, container tetap `80`. |
+| `API_HOST_PORT` | Port API di host. | Default `8000`, container tetap `8000`. |
+| `POSTGRES_HOST_PORT` | Port PostgreSQL di host. | Default `5433`, container tetap `5432`. |
 | `DATABASE_URL` | URL SQLAlchemy untuk API. | Host internal Compose: `postgres`. |
 | `JWT_SECRET_KEY` | Secret signing JWT. | Wajib kuat di production. |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | Masa berlaku access token. | Default 60 menit. |
