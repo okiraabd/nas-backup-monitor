@@ -10,6 +10,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -27,6 +28,14 @@ VALID_STATUSES = {STATUS_SUCCESS, STATUS_FAILED}
 
 class BackupLog(Base):
     __tablename__ = "backup_logs"
+    __table_args__ = (
+        UniqueConstraint(
+            "nas_id",
+            "job_name",
+            "snapshot_id",
+            name="uq_backup_logs_nas_job_snapshot",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     nas_id: Mapped[str] = mapped_column(String(64), index=True, nullable=False)

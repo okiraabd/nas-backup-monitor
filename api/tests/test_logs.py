@@ -24,7 +24,61 @@ class TestLogIngest:
         assert resp.status_code == 201
         data = resp.json()
         assert data["status"] == "SUCCESS"
+        assert data["created"] is True
         assert "log_id" in data
+
+    def test_retry_same_snapshot_is_idempotent(self, client, service_headers):
+        payload = {
+            "nas_id": "wd-pr4100",
+            "job_name": "backup-idempotency-test",
+            "status": "SUCCESS",
+            "snapshot_id": "snapshot-idempotency-001",
+        }
+
+        first = client.post("/api/logs/ingest", json=payload, headers=service_headers)
+        retry = client.post("/api/logs/ingest", json=payload, headers=service_headers)
+
+        assert first.status_code == 201
+        assert first.json()["created"] is True
+        assert retry.status_code == 200
+        assert retry.json()["created"] is False
+        assert retry.json()["log_id"] == first.json()["log_id"]
+
+    def test_same_snapshot_id_is_allowed_for_different_job(self, client, service_headers):
+        base = {
+            "nas_id": "wd-pr4100",
+            "status": "SUCCESS",
+            "snapshot_id": "shared-snapshot-id",
+        }
+        first = client.post(
+            "/api/logs/ingest",
+            json={**base, "job_name": "backup-job-a"},
+            headers=service_headers,
+        )
+        second = client.post(
+            "/api/logs/ingest",
+            json={**base, "job_name": "backup-job-b"},
+            headers=service_headers,
+        )
+
+        assert first.status_code == 201
+        assert second.status_code == 201
+        assert first.json()["log_id"] != second.json()["log_id"]
+
+    def test_logs_without_snapshot_id_remain_separate_events(self, client, service_headers):
+        payload = {
+            "nas_id": "wd-pr4100",
+            "job_name": "backup-pre-snapshot-failure",
+            "status": "FAILED",
+            "message": "Repository could not be opened",
+        }
+
+        first = client.post("/api/logs/ingest", json=payload, headers=service_headers)
+        second = client.post("/api/logs/ingest", json=payload, headers=service_headers)
+
+        assert first.status_code == 201
+        assert second.status_code == 201
+        assert first.json()["log_id"] != second.json()["log_id"]
 
     def test_admin_cannot_ingest(self, client, admin_headers):
         payload = {

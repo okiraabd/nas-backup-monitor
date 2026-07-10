@@ -51,6 +51,9 @@ an exam-style Q&A defending each design choice.
 - `POST  /api/logs/ingest` — NAS submits a Kopia result. Role: **service** only.
   `status` accepts `SUCCESS`/`FAILED` (case-insensitive), invalid → `422`.
   `raw_payload` stored as JSONB, `reported_by` taken from the JWT.
+  Retries are idempotent for the same `(nas_id, job_name, snapshot_id)`:
+  a new snapshot returns `201` with `created=true`; an existing snapshot
+  returns `200` with `created=false` and does not create a duplicate row.
 - `GET   /api/logs` — paginated list. Role: **admin/operator**. Filters: `nas_id`,
   `status`, `job_name`, `date_from`, `date_to`, `acknowledged`, `page`, `page_size`.
 - `GET   /api/logs/{log_id}` — full detail incl. raw payload. Role: **admin/operator**.

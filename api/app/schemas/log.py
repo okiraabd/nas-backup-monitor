@@ -45,6 +45,7 @@ class LogIngestResponse(BaseModel):
     log_id: int
     received_at: datetime
     status: str
+    created: bool = True
 
 
 class LogSummaryItem(BaseModel):

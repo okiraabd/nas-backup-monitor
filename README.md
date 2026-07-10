@@ -33,7 +33,7 @@ Proyek ini dibangun untuk memenuhi persyaratan **Kuliah Kerja Praktik (KKP)** di
 | **Metric Collector Daemon** | Layanan background independen yang memantau utilitas NAS via SNMP dan kesehatan klaster Ceph. Mendukung mode mock untuk demo. |
 | **Automated PDF Reports** | Generate laporan PDF otomatis untuk periode tertentu menggunakan ReportLab, dengan opsi custom filename. |
 | **Interactive Dashboard** | Chart yang bisa di-klik untuk drill-down ke data backup logs, kartu failed backup yang navigable. |
-| **Resilient NAS Scripts** | Skrip Kopia di sisi NAS dengan fitur retry bawaan dan pending queue untuk menangani kondisi offline. |
+| **Resilient NAS Scripts** | Reporter hasil Kopia dengan snapshot-ID reconciliation, idempotent ingest, dan pending queue untuk menangani kondisi offline. |
 | **User Management** | Pembuatan akun dinamis dengan auto-generated token (32 char) untuk akun mesin, serta dialog konfirmasi untuk aksi destruktif. |
 | **Advanced Filtering** | Pencarian dan filtering berbasis dropdown pada semua halaman daftar (logs, reports, users). |
 
@@ -147,9 +147,10 @@ nas-backup-monitor/
 │   └── requirements.txt
 │
 ├── nas-scripts/                # Client-side NAS scripts
-│   ├── kopia_backup.sh         # Kopia backup + log ingest
-│   ├── retry_pending_logs.sh   # Retry failed API submissions
-│   └── pending/                # Queue directory for offline logs
+│   ├── kopia_snapshot_reporter.sh # Entry point reporter: scan, reconcile, kirim pending log
+│   ├── kopia_reporter.py       # Helper Python: parsing Kopia, auto-discovery job, state
+│   ├── .env.example            # Template konfigurasi satu NAS
+│   └── tests/                  # Test reporter dan fixture Kopia
 │
 ├── docker-compose.yml          # Full stack orchestration
 ├── .env.example                # Template environment variables

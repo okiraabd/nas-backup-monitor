@@ -2,8 +2,9 @@
 from datetime import datetime, timezone
 from math import ceil
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -29,10 +30,34 @@ router = APIRouter(prefix="/logs", tags=["logs"])
 )
 def ingest_log(
     payload: LogIngest,
+    response: Response,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_service),
 ) -> LogIngestResponse:
-    """Ingest a backup result from a NAS. Role: service only."""
+    """Ingest a backup result from a NAS. Role: service only.
+
+    A Kopia snapshot is idempotent on (nas_id, job_name, snapshot_id). A retry
+    returns the existing row with HTTP 200 instead of creating a duplicate.
+    Logs without a snapshot_id (for example, pre-snapshot failures) are always
+    stored as separate events.
+    """
+    if payload.snapshot_id is not None:
+        existing = db.scalar(
+            select(BackupLog).where(
+                BackupLog.nas_id == payload.nas_id,
+                BackupLog.job_name == payload.job_name,
+                BackupLog.snapshot_id == payload.snapshot_id,
+            )
+        )
+        if existing is not None:
+            response.status_code = status.HTTP_200_OK
+            return LogIngestResponse(
+                log_id=existing.id,
+                received_at=existing.created_at,
+                status=existing.status,
+                created=False,
+            )
+
     log = BackupLog(
         nas_id=payload.nas_id,
         job_name=payload.job_name,
@@ -59,10 +84,36 @@ def ingest_log(
         reported_by=current_user.id,
     )
     db.add(log)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # A concurrent request may win after the pre-insert lookup. The unique
+        # constraint is the final guard; resolve that race as a normal retry.
+        db.rollback()
+        if payload.snapshot_id is None:
+            raise
+        existing = db.scalar(
+            select(BackupLog).where(
+                BackupLog.nas_id == payload.nas_id,
+                BackupLog.job_name == payload.job_name,
+                BackupLog.snapshot_id == payload.snapshot_id,
+            )
+        )
+        if existing is None:
+            raise
+        response.status_code = status.HTTP_200_OK
+        return LogIngestResponse(
+            log_id=existing.id,
+            received_at=existing.created_at,
+            status=existing.status,
+            created=False,
+        )
     db.refresh(log)
     return LogIngestResponse(
-        log_id=log.id, received_at=log.created_at, status=log.status
+        log_id=log.id,
+        received_at=log.created_at,
+        status=log.status,
+        created=True,
     )
 
 

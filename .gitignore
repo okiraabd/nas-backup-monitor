@@ -99,8 +99,12 @@ api/generated_reports/
 *.pdf
 *.log
 
-# NAS script pending queue (runtime data)
+# NAS reporter runtime data and local credentials
 nas-scripts/pending/*.json
+nas-scripts/runtime/
+nas-scripts/logs/
+nas-scripts/secrets/
+nas-scripts/.env
 
 # =========================
 # Security - NEVER commit

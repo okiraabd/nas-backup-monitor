@@ -1,0 +1,70 @@
+[
+  {
+    "id": "270ee4815a82c74d2d20bb846ff19cac",
+    "source": {
+      "host": "kopia-server",
+      "userName": "root",
+      "path": "/master_backup/hr"
+    },
+    "description": "",
+    "startTime": "2026-07-08T06:00:00.152497301Z",
+    "endTime": "2026-07-08T06:00:00.155663179Z",
+    "stats": {
+      "totalSize": 38189013,
+      "excludedTotalSize": 0,
+      "fileCount": 0,
+      "cachedFiles": 30,
+      "nonCachedFiles": 0,
+      "dirCount": 1,
+      "excludedFileCount": 0,
+      "excludedDirCount": 0,
+      "ignoredErrorCount": 0,
+      "errorCount": 0
+    },
+    "rootEntry": {
+      "name": "hr",
+      "type": "d",
+      "summ": {
+        "size": 38189013,
+        "files": 30,
+        "dirs": 1,
+        "numFailed": 0
+      }
+    },
+    "retentionReason": ["latest-2", "hourly-2"]
+  },
+  {
+    "id": "42bfcf126aa9cd4a7e647a94acee76e3",
+    "source": {
+      "host": "kopia-server",
+      "userName": "root",
+      "path": "/master_backup/hr"
+    },
+    "description": "",
+    "startTime": "2026-07-08T06:10:00.037796699Z",
+    "endTime": "2026-07-08T06:10:00.043538307Z",
+    "stats": {
+      "totalSize": 38189013,
+      "excludedTotalSize": 0,
+      "fileCount": 0,
+      "cachedFiles": 30,
+      "nonCachedFiles": 0,
+      "dirCount": 1,
+      "excludedFileCount": 0,
+      "excludedDirCount": 0,
+      "ignoredErrorCount": 0,
+      "errorCount": 0
+    },
+    "rootEntry": {
+      "name": "hr",
+      "type": "d",
+      "summ": {
+        "size": 38189013,
+        "files": 30,
+        "dirs": 1,
+        "numFailed": 0
+      }
+    },
+    "retentionReason": ["latest-1", "hourly-1", "daily-1"]
+  }
+]
