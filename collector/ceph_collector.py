@@ -1,6 +1,14 @@
-"""Ceph HTTP Metric Collector (Stub for real hardware)."""
+"""Ceph HTTP metric collector for mock and Prometheus-backed Ceph data."""
 
+import logging
 import random
+
+import httpx
+
+from snmp_collector import _parse_prometheus_text
+
+logger = logging.getLogger(__name__)
+
 
 def get_mock_ceph_metrics(cluster_id: str) -> list[dict]:
     """Generate fake mock metrics for a Ceph cluster."""
@@ -23,11 +31,14 @@ def get_mock_ceph_metrics(cluster_id: str) -> list[dict]:
         {"name": "ceph_reachable", "value": 1, "unit": "bool"},
     ]
 
-import httpx
-import logging
-from snmp_collector import _parse_prometheus_text, _get_single
 
-logger = logging.getLogger(__name__)
+def _get_metric_value(metrics: dict, name: str, default: float | None = None) -> float | None:
+    """Return the first value for one Prometheus metric name."""
+    series = metrics.get(name, [])
+    if not series:
+        return default
+    return series[0][1]
+
 
 def get_prometheus_ceph_metrics(metrics_url: str) -> list[dict]:
     """Scrape real Ceph Manager metrics from the Prometheus exporter."""
@@ -52,7 +63,7 @@ def get_prometheus_ceph_metrics(metrics_url: str) -> list[dict]:
     result = []
 
     # Health status (0=OK, 1=WARN, 2=ERR)
-    health_val = _get_single(metrics, ("ceph_health_status",), 2.0)
+    health_val = _get_metric_value(metrics, "ceph_health_status", 2.0)
     if health_val == 0.0:
         health_str = "HEALTH_OK"
     elif health_val == 1.0:
@@ -76,8 +87,8 @@ def get_prometheus_ceph_metrics(metrics_url: str) -> list[dict]:
     result.append({"name": "osd_total", "value": int(osd_total), "unit": "count"})
 
     # Storage usage
-    total_bytes = _get_single(metrics, ("ceph_cluster_total_bytes",), 0)
-    used_bytes = _get_single(metrics, ("ceph_cluster_total_used_bytes",), 0)
+    total_bytes = _get_metric_value(metrics, "ceph_cluster_total_bytes", 0) or 0
+    used_bytes = _get_metric_value(metrics, "ceph_cluster_total_used_bytes", 0) or 0
     result.append({"name": "storage_total_bytes", "value": total_bytes, "unit": "bytes"})
     result.append({"name": "storage_used_bytes", "value": used_bytes, "unit": "bytes"})
 
