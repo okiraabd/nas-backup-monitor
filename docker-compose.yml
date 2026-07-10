@@ -16,7 +16,7 @@ services:
       # Container-internal port stays 5432 (used by the api service).
       - "${POSTGRES_HOST_PORT:-5433}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-backup_monitor}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-backup_monitor} -d ${POSTGRES_DB:-backup_monitor}"]
       interval: 5s
       timeout: 5s
       retries: 10
