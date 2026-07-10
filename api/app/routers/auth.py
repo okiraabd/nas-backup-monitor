@@ -21,7 +21,11 @@ from app.services.auth_service import (
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/login", response_model=LoginResponse)
+@router.post(
+    "/login",
+    response_model=LoginResponse,
+    summary="Login and issue a JWT",
+)
 def login(payload: LoginRequest, db: Session = Depends(get_db)) -> LoginResponse:
     """Exchange username/password for a JWT access token."""
     try:
@@ -31,7 +35,11 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)) -> LoginResponse
     return LoginResponse(access_token=token, user=UserPublic.model_validate(user))
 
 
-@router.post("/logout", response_model=MessageResponse)
+@router.post(
+    "/logout",
+    response_model=MessageResponse,
+    summary="Logout and revoke the current JWT",
+)
 def logout(
     payload: dict = Depends(get_token_payload),
     db: Session = Depends(get_db),
@@ -46,13 +54,21 @@ def logout(
     return MessageResponse(message="Logged out. Token has been revoked.")
 
 
-@router.get("/me", response_model=UserPublic)
+@router.get(
+    "/me",
+    response_model=UserPublic,
+    summary="Get the current authenticated user",
+)
 def me(current_user: User = Depends(get_current_user)) -> UserPublic:
     """Return the currently authenticated user's profile."""
     return UserPublic.model_validate(current_user)
 
 
-@router.post("/refresh", response_model=LoginResponse)
+@router.post(
+    "/refresh",
+    response_model=LoginResponse,
+    summary="Rotate the current JWT",
+)
 def refresh(
     current_user: User = Depends(get_current_user),
     payload: dict = Depends(get_token_payload),

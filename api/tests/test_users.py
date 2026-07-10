@@ -77,6 +77,24 @@ class TestUserCRUD:
             resp = client.delete(f"/api/users/{uid}", headers=admin_headers)
             assert resp.status_code == 204
 
+    def test_admin_cannot_demote_self(self, client, admin_headers):
+        me = client.get("/api/auth/me", headers=admin_headers).json()
+        resp = client.patch(
+            f"/api/users/{me['id']}",
+            json={"role": "operator"},
+            headers=admin_headers,
+        )
+        assert resp.status_code == 400
+
+    def test_admin_cannot_disable_self_via_patch(self, client, admin_headers):
+        me = client.get("/api/auth/me", headers=admin_headers).json()
+        resp = client.patch(
+            f"/api/users/{me['id']}",
+            json={"is_active": False},
+            headers=admin_headers,
+        )
+        assert resp.status_code == 400
+
 
 class TestPasswordAndToken:
     def test_reset_password(self, client, admin_headers):

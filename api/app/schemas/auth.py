@@ -1,31 +1,37 @@
 """Auth request/response schemas."""
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class LoginRequest(BaseModel):
-    username: str
-    password: str
+    """Credentials submitted by a dashboard user or machine account."""
+
+    username: str = Field(..., description="Account username.")
+    password: str = Field(..., description="Plaintext password submitted only for login.")
 
 
 class UserPublic(BaseModel):
     """User info returned to clients (never includes password hash)."""
     model_config = ConfigDict(from_attributes=True)
 
-    id: int
-    username: str
-    display_name: str
-    role: str
-    is_active: bool
-    last_login_at: datetime | None = None
+    id: int = Field(..., description="Internal user ID.")
+    username: str = Field(..., description="Login username.")
+    display_name: str = Field(..., description="Human-readable account name.")
+    role: str = Field(..., description="Role used by RBAC: admin, operator, service, or collector.")
+    is_active: bool = Field(..., description="Inactive users cannot authenticate.")
+    last_login_at: datetime | None = Field(None, description="Last successful login time.")
 
 
 class LoginResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-    user: UserPublic
+    """JWT response returned after login or refresh."""
+
+    access_token: str = Field(..., description="JWT bearer token.")
+    token_type: str = Field("bearer", description="Token type used in Authorization header.")
+    user: UserPublic = Field(..., description="Authenticated user profile.")
 
 
 class MessageResponse(BaseModel):
-    message: str
+    """Simple message wrapper for command-style endpoints."""
+
+    message: str = Field(..., description="Human-readable operation result.")

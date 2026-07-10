@@ -21,6 +21,26 @@ Postgres, runs migrations, and seeds demo data automatically.
 - Docs:  http://localhost:8000/docs
 - Health: http://localhost:8000/health
 
+## Interactive API Docs
+Swagger UI is available at `http://localhost:8000/docs`.
+
+The documentation is grouped by operational role:
+- **auth** — login, logout, refresh token, and current profile.
+- **logs** — NAS backup result ingestion and failed-backup acknowledgement.
+- **monitor** — NAS/Ceph metric ingestion, freshness status, and history.
+- **reports** — generate and download PDF reports.
+- **users** — admin-only user and machine-account management.
+
+To try protected endpoints from Swagger:
+1. Call `POST /api/auth/login`.
+2. Copy the returned `access_token`.
+3. Click **Authorize** and paste it as `Bearer <access_token>`.
+
+Timestamp fields must include an explicit timezone offset, for example
+`2026-07-10T09:00:00+07:00` or `2026-07-10T02:00:00Z`. The API stores instants
+in UTC, while dashboard/report date ranges are interpreted in `APP_TIMEZONE`
+(default: `Asia/Jakarta`).
+
 ## Manual migration / seed
 If `AUTO_SEED=false` or you want to re-run:
 ```bash

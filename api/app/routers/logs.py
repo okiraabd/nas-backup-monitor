@@ -27,6 +27,7 @@ router = APIRouter(prefix="/logs", tags=["logs"])
     "/ingest",
     response_model=LogIngestResponse,
     status_code=status.HTTP_201_CREATED,
+    summary="Ingest one NAS backup result",
 )
 def ingest_log(
     payload: LogIngest,
@@ -117,7 +118,11 @@ def ingest_log(
     )
 
 
-@router.get("", response_model=PaginatedLogs)
+@router.get(
+    "",
+    response_model=PaginatedLogs,
+    summary="List backup logs with filters",
+)
 def list_logs(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_operator_or_admin),
@@ -166,7 +171,11 @@ def list_logs(
     )
 
 
-@router.get("/{log_id}", response_model=LogDetail)
+@router.get(
+    "/{log_id}",
+    response_model=LogDetail,
+    summary="Get backup log detail",
+)
 def get_log(
     log_id: int,
     db: Session = Depends(get_db),
@@ -179,7 +188,11 @@ def get_log(
     return LogDetail.model_validate(log)
 
 
-@router.patch("/{log_id}/acknowledge", response_model=LogDetail)
+@router.patch(
+    "/{log_id}/acknowledge",
+    response_model=LogDetail,
+    summary="Acknowledge a failed backup log",
+)
 def acknowledge_log(
     log_id: int,
     payload: AcknowledgeRequest,

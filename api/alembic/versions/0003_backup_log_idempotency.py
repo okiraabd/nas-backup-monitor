@@ -17,6 +17,9 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    # A successful Kopia snapshot may be reported more than once when the NAS
+    # script retries. This constraint lets the API treat those retries as the
+    # same backup event instead of creating duplicates.
     op.create_unique_constraint(
         "uq_backup_logs_nas_job_snapshot",
         "backup_logs",
@@ -25,6 +28,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # Remove the database-level guard if this migration is rolled back.
     op.drop_constraint(
         "uq_backup_logs_nas_job_snapshot",
         "backup_logs",

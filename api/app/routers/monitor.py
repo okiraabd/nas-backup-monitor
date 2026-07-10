@@ -37,6 +37,7 @@ require_admin_operator_or_collector = require_roles("admin", "operator", "collec
     "/ingest",
     response_model=MonitorIngestResponse,
     status_code=status.HTTP_201_CREATED,
+    summary="Ingest NAS/Ceph metric samples",
 )
 def ingest_metrics(
     payload: MonitorIngest,
@@ -67,7 +68,11 @@ def ingest_metrics(
     return MonitorIngestResponse(source_id=payload.source_id, stored_metrics=stored)
 
 
-@router.get("/summary", response_model=MonitorSummary)
+@router.get(
+    "/summary",
+    response_model=MonitorSummary,
+    summary="Get monitoring summary",
+)
 def summary(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_operator_or_admin),
@@ -101,7 +106,11 @@ def summary(
     )
 
 
-@router.get("/activity-trend", response_model=ActivityTrendResponse)
+@router.get(
+    "/activity-trend",
+    response_model=ActivityTrendResponse,
+    summary="Get seven-day backup activity trend",
+)
 def activity_trend(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_operator_or_admin),
@@ -143,7 +152,11 @@ def activity_trend(
     return ActivityTrendResponse(days=days)
 
 
-@router.get("/nas", response_model=NasListResponse)
+@router.get(
+    "/nas",
+    response_model=NasListResponse,
+    summary="List monitored NAS sources",
+)
 def list_nas(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_operator_or_admin),
@@ -157,7 +170,11 @@ def list_nas(
     return NasListResponse(items=snaps)
 
 
-@router.get("/nas/{nas_id}", response_model=SourceSnapshot)
+@router.get(
+    "/nas/{nas_id}",
+    response_model=SourceSnapshot,
+    summary="Get latest NAS snapshot",
+)
 def get_nas(
     nas_id: str,
     db: Session = Depends(get_db),
@@ -170,7 +187,11 @@ def get_nas(
     return SourceSnapshot.model_validate(snap)
 
 
-@router.get("/nas/{nas_id}/history", response_model=MetricHistory)
+@router.get(
+    "/nas/{nas_id}/history",
+    response_model=MetricHistory,
+    summary="Get NAS metric history",
+)
 def get_nas_history(
     nas_id: str,
     metric: str = Query("cpu_usage"),
@@ -183,7 +204,11 @@ def get_nas_history(
     return MetricHistory(source_id=nas_id, metric_name=metric, points=points)
 
 
-@router.get("/ceph", response_model=SourceSnapshot)
+@router.get(
+    "/ceph",
+    response_model=SourceSnapshot,
+    summary="Get latest Ceph snapshot",
+)
 def get_ceph(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_operator_or_admin),
@@ -196,7 +221,11 @@ def get_ceph(
     return SourceSnapshot.model_validate(snap)
 
 
-@router.get("/ceph/history", response_model=MetricHistory)
+@router.get(
+    "/ceph/history",
+    response_model=MetricHistory,
+    summary="Get Ceph metric history",
+)
 def get_ceph_history(
     metric: str = Query("storage_used_pct"),
     limit: int = Query(50, ge=1, le=500),
@@ -209,7 +238,11 @@ def get_ceph_history(
     return MetricHistory(source_id=source_id, metric_name=metric, points=points)
 
 
-@router.get("/collector/status", response_model=CollectorStatus)
+@router.get(
+    "/collector/status",
+    response_model=CollectorStatus,
+    summary="Get last collector run status",
+)
 def collector_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin_operator_or_collector),
@@ -229,7 +262,12 @@ def collector_status(
     )
 
 
-@router.post("/collector/run-once", response_model=CollectorStatus, status_code=202)
+@router.post(
+    "/collector/run-once",
+    response_model=CollectorStatus,
+    status_code=202,
+    summary="Record a manual collector trigger",
+)
 def collector_run_once(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_operator_or_admin),
@@ -263,7 +301,12 @@ def collector_run_once(
     )
 
 
-@router.post("/collector/run", response_model=CollectorStatus, status_code=201)
+@router.post(
+    "/collector/run",
+    response_model=CollectorStatus,
+    status_code=201,
+    summary="Record a completed collector run",
+)
 def collector_run_report(
     payload: CollectorRunRequest,
     db: Session = Depends(get_db),

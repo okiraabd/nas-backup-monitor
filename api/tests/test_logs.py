@@ -98,6 +98,53 @@ class TestLogIngest:
         resp = client.post("/api/logs/ingest", json=payload, headers=service_headers)
         assert resp.status_code == 422
 
+    def test_negative_counts_rejected(self, client, service_headers):
+        payload = {
+            "nas_id": "wd-pr4100",
+            "job_name": "backup-negative-duration",
+            "status": "FAILED",
+            "duration_seconds": -1,
+        }
+        resp = client.post("/api/logs/ingest", json=payload, headers=service_headers)
+        assert resp.status_code == 422
+
+    def test_blank_snapshot_id_is_treated_as_missing(self, client, service_headers):
+        payload = {
+            "nas_id": "wd-pr4100",
+            "job_name": "backup-blank-snapshot-id",
+            "status": "FAILED",
+            "snapshot_id": "   ",
+            "message": "pre-snapshot failure",
+        }
+
+        first = client.post("/api/logs/ingest", json=payload, headers=service_headers)
+        second = client.post("/api/logs/ingest", json=payload, headers=service_headers)
+
+        assert first.status_code == 201
+        assert second.status_code == 201
+        assert first.json()["log_id"] != second.json()["log_id"]
+
+    def test_naive_timestamp_rejected(self, client, service_headers):
+        payload = {
+            "nas_id": "wd-pr4100",
+            "job_name": "backup-naive-time",
+            "status": "SUCCESS",
+            "started_at": "2026-07-10T10:00:00",
+        }
+        resp = client.post("/api/logs/ingest", json=payload, headers=service_headers)
+        assert resp.status_code == 422
+
+    def test_ended_before_started_rejected(self, client, service_headers):
+        payload = {
+            "nas_id": "wd-pr4100",
+            "job_name": "backup-invalid-time-range",
+            "status": "FAILED",
+            "started_at": "2026-07-10T10:00:00+00:00",
+            "ended_at": "2026-07-10T09:59:00+00:00",
+        }
+        resp = client.post("/api/logs/ingest", json=payload, headers=service_headers)
+        assert resp.status_code == 422
+
 
 class TestLogList:
     def test_admin_list_logs(self, client, admin_headers):

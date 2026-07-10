@@ -16,7 +16,11 @@ from app.services.report_service import generate_report
 router = APIRouter(prefix="/reports", tags=["reports"])
 
 
-@router.get("", response_model=list[ReportOut])
+@router.get(
+    "",
+    response_model=list[ReportOut],
+    summary="List generated reports",
+)
 def list_reports(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_operator_or_admin),
@@ -25,7 +29,12 @@ def list_reports(
     return db.scalars(select(Report).order_by(Report.generated_at.desc())).all()
 
 
-@router.post("/generate", response_model=ReportOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/generate",
+    response_model=ReportOut,
+    status_code=status.HTTP_201_CREATED,
+    summary="Generate a PDF backup report",
+)
 def generate(
     payload: ReportGenerate,
     db: Session = Depends(get_db),
@@ -42,7 +51,10 @@ def generate(
     )
 
 
-@router.get("/{report_id}/download")
+@router.get(
+    "/{report_id}/download",
+    summary="Download a report PDF",
+)
 def download_report(
     report_id: int,
     db: Session = Depends(get_db),
@@ -61,7 +73,11 @@ def download_report(
     )
 
 
-@router.delete("/{report_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{report_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a report and its file",
+)
 def delete_report(
     report_id: int,
     db: Session = Depends(get_db),

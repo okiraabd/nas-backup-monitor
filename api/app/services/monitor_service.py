@@ -7,8 +7,8 @@ Freshness thresholds (computed by the API, never the frontend):
 """
 from datetime import datetime, timezone
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session, aliased
 
 from app.models.metric import SOURCE_CEPH, SOURCE_NAS, Metric
 
@@ -64,10 +64,27 @@ def latest_snapshot(db: Session, source_type: str, source_id: str) -> dict | Non
     Returns a dict matching SourceSnapshot, or None if the source has no data.
     Picks the most recent value per metric_name.
     """
-    rows = db.scalars(
-        select(Metric)
+    # Rank rows inside the database so we only fetch the newest row for each
+    # metric_name. This keeps dashboard reads fast as metric history grows.
+    ranked_metrics = (
+        select(
+            Metric,
+            func.row_number()
+            .over(
+                partition_by=Metric.metric_name,
+                order_by=(Metric.collected_at.desc(), Metric.id.desc()),
+            )
+            .label("row_number"),
+        )
         .where(Metric.source_type == source_type, Metric.source_id == source_id)
-        .order_by(Metric.collected_at.desc(), Metric.id.desc())
+        .subquery()
+    )
+    latest_metric = aliased(Metric, ranked_metrics)
+
+    rows = db.scalars(
+        select(latest_metric)
+        .where(ranked_metrics.c.row_number == 1)
+        .order_by(latest_metric.collected_at.desc(), latest_metric.id.desc())
     ).all()
     if not rows:
         return None
