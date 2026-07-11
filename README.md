@@ -277,8 +277,9 @@ Prinsipnya:
 1. Kopia tetap menjalankan backup sesuai policy/schedule.
 2. Reporter membaca `kopia snapshot list --json` dari container Kopia.
 3. Reporter merekonsiliasi snapshot baru berdasarkan snapshot ID.
-4. Payload dikirim ke `POST /api/logs/ingest`.
-5. Jika API/network bermasalah, payload disimpan di pending queue lokal.
+4. Jika repository tidak bisa dibuka atau container Kopia berhenti, reporter membuat event `FAILED` tanpa snapshot ID.
+5. Payload dikirim ke `POST /api/logs/ingest`.
+6. Jika API/network bermasalah, payload disimpan di pending queue lokal.
 
 Instalasi production NAS direkomendasikan di satu folder:
 

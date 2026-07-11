@@ -14,6 +14,8 @@ from kopia_reporter import (  # noqa: E402
     build_login_payload,
     extract_access_token,
     normalize_snapshot,
+    queue_container_not_running,
+    queue_repository_error,
     reconcile_snapshots,
 )
 
@@ -157,6 +159,139 @@ class KopiaReporterTests(unittest.TestCase):
             self.assertEqual(first["created"], 1)
             self.assertEqual(retry["created"], 0)
             self.assertEqual(retry["already_pending"], 1)
+
+    def test_repository_error_queues_failed_event_for_known_sources(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            state = root / "state.json"
+            pending = root / "pending"
+            state.write_text(
+                json.dumps(
+                    {
+                        "version": 2,
+                        "nas_id": "synology-ds1522",
+                        "sources": {
+                            "/master_backup/hr": {
+                                "job_name": "backup-hr",
+                                "source_path": "/master_backup/hr",
+                                "technical_source": "root@kopia:/master_backup/hr",
+                                "seen_snapshot_ids": ["old-snapshot"],
+                            }
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            result = queue_repository_error(
+                diagnostic="failed to open repository: connection refused",
+                config=self.config,
+                state_path=state,
+                pending_dir=pending,
+            )
+
+            files = list(pending.glob("*.json"))
+            payload = json.loads(files[0].read_text(encoding="utf-8"))
+
+            self.assertEqual(result["sources"], 1)
+            self.assertEqual(result["created"], 1)
+            self.assertEqual(payload["status"], "FAILED")
+            self.assertEqual(payload["job_name"], "backup-hr")
+            self.assertEqual(payload["source_path"], "/master_backup/hr")
+            self.assertIsNone(payload["snapshot_id"])
+            self.assertEqual(payload["error_count"], 1)
+            self.assertEqual(payload["raw_payload"]["event_type"], "kopia_snapshot_query_failed")
+            self.assertIn("connection refused", payload["raw_payload"]["diagnostic"])
+
+    def test_repository_error_uses_generic_job_without_state(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            pending = root / "pending"
+
+            result = queue_repository_error(
+                diagnostic="repository unavailable",
+                config=self.config,
+                state_path=root / "missing-state.json",
+                pending_dir=pending,
+            )
+
+            files = list(pending.glob("*.json"))
+            payload = json.loads(files[0].read_text(encoding="utf-8"))
+
+            self.assertEqual(result["sources"], 1)
+            self.assertEqual(result["created"], 1)
+            self.assertEqual(payload["job_name"], "kopia-repository")
+            self.assertIsNone(payload["source_path"])
+
+    def test_repository_error_keeps_same_job_name_sources_separate(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            state = root / "state.json"
+            pending = root / "pending"
+            state.write_text(
+                json.dumps(
+                    {
+                        "version": 2,
+                        "nas_id": "synology-ds1522",
+                        "sources": {
+                            "/volume1/data": {"job_name": "backup-data", "source_path": "/volume1/data"},
+                            "/volume2/data": {"job_name": "backup-data", "source_path": "/volume2/data"},
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            result = queue_repository_error(
+                diagnostic="repository unavailable",
+                config=self.config,
+                state_path=state,
+                pending_dir=pending,
+            )
+
+            self.assertEqual(result["sources"], 2)
+            self.assertEqual(result["created"], 2)
+            self.assertEqual(len(list(pending.glob("*.json"))), 2)
+
+    def test_container_not_running_queues_failed_event(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            state = root / "state.json"
+            pending = root / "pending"
+            state.write_text(
+                json.dumps(
+                    {
+                        "version": 2,
+                        "nas_id": "synology-ds1522",
+                        "sources": {
+                            "/master_backup/hr": {
+                                "job_name": "backup-hr",
+                                "source_path": "/master_backup/hr",
+                            }
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            result = queue_container_not_running(
+                diagnostic="Kopia container is not running: kopia-server",
+                config=self.config,
+                state_path=state,
+                pending_dir=pending,
+            )
+
+            files = list(pending.glob("*.json"))
+            payload = json.loads(files[0].read_text(encoding="utf-8"))
+
+            self.assertEqual(result["sources"], 1)
+            self.assertEqual(result["created"], 1)
+            self.assertEqual(payload["status"], "FAILED")
+            self.assertEqual(payload["job_name"], "backup-hr")
+            self.assertEqual(payload["source_path"], "/master_backup/hr")
+            self.assertIsNone(payload["snapshot_id"])
+            self.assertEqual(payload["raw_payload"]["event_type"], "kopia_container_not_running")
+            self.assertIn("kopia-server", payload["raw_payload"]["diagnostic"])
 
     def test_login_payload_preserves_special_characters(self):
         payload = build_login_payload("nas-service\0p@ss word!$\\n".encode())

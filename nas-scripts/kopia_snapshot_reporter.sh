@@ -129,42 +129,66 @@ fi
 
 if [[ $(docker inspect --format '{{.State.Running}}' "$KOPIA_CONTAINER_NAME" 2>/dev/null || true) != "true" ]]; then
     log "Kopia container is not running: $KOPIA_CONTAINER_NAME"
-    exit 1
+    printf 'Kopia container is not running: %s\n' "$KOPIA_CONTAINER_NAME" >"$ERROR_FILE"
+    # Docker masih hidup, jadi helper bisa membuat FAILED event untuk dikirim.
+    queue_container_args=(
+        /app/kopia_reporter.py queue-container-not-running
+        --state "/runtime/state/$(basename -- "$STATE_FILE")"
+        --pending-dir /runtime/pending
+        --nas-id "$NAS_ID"
+    )
+    if ! parser_result=$(run_reporter_python "${queue_container_args[@]}" <"$ERROR_FILE"); then
+        log "Could not queue the Kopia container failure event."
+        exit 1
+    fi
+    log "Container failure queue result: $parser_result"
+else
+    # Reporter hanya membaca hasil backup. Schedule dan snapshot create tetap milik Kopia.
+    kopia_args=(
+        snapshot list
+        --json
+        --json-verbose
+        --manifest-id
+        --show-identical
+        --incomplete
+        --no-human-readable
+        --max-results="$KOPIA_MAX_RESULTS"
+    )
+
+    log "Scanning up to $KOPIA_MAX_RESULTS snapshots across all Kopia sources"
+    if ! docker exec "$KOPIA_CONTAINER_NAME" kopia "${kopia_args[@]}" >"$RAW_FILE" 2>"$ERROR_FILE"; then
+        log "Kopia snapshot query failed. Last diagnostic lines:"
+        tail -n 10 "$ERROR_FILE" >&2 || true
+        # Jika repository tidak bisa dibuka, Kopia belum tentu membuat manifest.
+        # Queue synthetic FAILED event agar dashboard tetap melihat outage backup.
+        queue_error_args=(
+            /app/kopia_reporter.py queue-repository-error
+            --state "/runtime/state/$(basename -- "$STATE_FILE")"
+            --pending-dir /runtime/pending
+            --nas-id "$NAS_ID"
+        )
+        if ! parser_result=$(run_reporter_python "${queue_error_args[@]}" <"$ERROR_FILE"); then
+            log "Could not queue the Kopia repository failure event."
+            exit 1
+        fi
+        log "Repository failure queue result: $parser_result"
+    else
+        # Helper mengubah JSON Kopia menjadi payload API dan menaruh snapshot baru ke pending.
+        reconcile_args=(
+            /app/kopia_reporter.py reconcile
+            --input /dev/stdin
+            --state "/runtime/state/$(basename -- "$STATE_FILE")"
+            --pending-dir /runtime/pending
+            --nas-id "$NAS_ID"
+        )
+
+        if ! parser_result=$(run_reporter_python "${reconcile_args[@]}" <"$RAW_FILE"); then
+            log "Snapshot parsing failed inside the disposable Python container."
+            exit 1
+        fi
+        log "Reconciliation result: $parser_result"
+    fi
 fi
-
-# Reporter hanya membaca hasil backup. Schedule dan snapshot create tetap milik Kopia.
-kopia_args=(
-    snapshot list
-    --json
-    --json-verbose
-    --manifest-id
-    --show-identical
-    --incomplete
-    --no-human-readable
-    --max-results="$KOPIA_MAX_RESULTS"
-)
-
-log "Scanning up to $KOPIA_MAX_RESULTS snapshots across all Kopia sources"
-if ! docker exec "$KOPIA_CONTAINER_NAME" kopia "${kopia_args[@]}" >"$RAW_FILE" 2>"$ERROR_FILE"; then
-    log "Kopia snapshot query failed. Last diagnostic lines:"
-    tail -n 10 "$ERROR_FILE" >&2 || true
-    exit 1
-fi
-
-# Helper mengubah JSON Kopia menjadi payload API dan menaruh snapshot baru ke pending.
-reconcile_args=(
-    /app/kopia_reporter.py reconcile
-    --input /dev/stdin
-    --state "/runtime/state/$(basename -- "$STATE_FILE")"
-    --pending-dir /runtime/pending
-    --nas-id "$NAS_ID"
-)
-
-if ! parser_result=$(run_reporter_python "${reconcile_args[@]}" <"$RAW_FILE"); then
-    log "Snapshot parsing failed inside the disposable Python container."
-    exit 1
-fi
-log "Reconciliation result: $parser_result"
 
 shopt -s nullglob
 files=("$PENDING_DIR"/*.json)

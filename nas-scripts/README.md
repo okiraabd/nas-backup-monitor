@@ -25,6 +25,16 @@ source.path         rootEntry.name   job_name
 State lokal hanya cache. PostgreSQL tetap menjadi pagar final anti-duplikasi
 melalui kombinasi unik `nas_id + job_name + snapshot_id`.
 
+Jika `kopia snapshot list` gagal total karena repository tidak bisa dibuka
+(contoh: S3/MinIO/Ceph down), reporter tetap membuat log `FAILED` tanpa
+`snapshot_id`. Jika state lokal sudah mengenali source sebelumnya, event dibuat
+per source/job yang diketahui. Jika belum ada state, reporter membuat satu event
+generic `job_name=kopia-repository`.
+
+Jika container Kopia berhenti tetapi Docker masih bisa menjalankan helper
+reporter, kasus tersebut juga dibuat sebagai log `FAILED` tanpa `snapshot_id`
+dengan `raw_payload.event_type=kopia_container_not_running`.
+
 ## File utama
 
 - `kopia_snapshot_reporter.sh`: satu entrypoint shell untuk scan, reconcile, login API, dan delivery pending log.
@@ -162,6 +172,8 @@ test tambahan memakai bentuk snapshot NAS WD `/MAKUKU`.
 ## Keterbatasan
 
 Polling snapshot dapat membaca snapshot sukses dan incomplete yang mempunyai
-manifest. Kegagalan sebelum manifest terbentuk (misalnya container mati atau
-repository tidak dapat dibuka) tidak selalu muncul pada `snapshot list`; hal
-tersebut dapat dikembangkan melalui webhook atau missing-schedule monitoring.
+manifest. Kegagalan repository atau container Kopia berhenti sebelum manifest
+terbentuk sekarang dicatat sebagai synthetic `FAILED` event dari reporter.
+Namun event tersebut tetap berbasis hasil polling, sehingga tidak berisi detail
+ukuran/file count dan tidak seakurat integrasi langsung ke eksekusi backup atau
+webhook Kopia.

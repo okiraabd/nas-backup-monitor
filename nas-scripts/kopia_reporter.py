@@ -7,6 +7,7 @@ or unsafe to do in shell:
 - normalize Kopia's JSON into the Backup Monitor API payload shape;
 - discover jobs from snapshot source metadata;
 - reconcile unseen snapshot IDs per source;
+- create synthetic failure events when Kopia cannot be queried;
 - create pending payloads atomically;
 - build/extract small auth JSON payloads for the shell delivery client.
 """
@@ -340,6 +341,149 @@ def reconcile_snapshots(
     }
 
 
+def _known_sources_from_state(state_path: Path) -> list[dict[str, str | None]]:
+    """Return previously discovered sources, or one generic repository source."""
+    try:
+        state = _load_state(state_path)
+        sources = state.get("sources", {})
+    except (FileNotFoundError, OSError, ValueError, json.JSONDecodeError):
+        sources = {}
+
+    known_sources: list[dict[str, str | None]] = []
+    if isinstance(sources, dict):
+        for source_key, source in sorted(sources.items()):
+            if not isinstance(source, dict):
+                continue
+            job_name = source.get("job_name")
+            source_path = source.get("source_path")
+            known_sources.append(
+                {
+                    "source_key": source_key if isinstance(source_key, str) else None,
+                    "job_name": job_name if isinstance(job_name, str) and job_name else "kopia-repository",
+                    "source_path": source_path if isinstance(source_path, str) and source_path else None,
+                }
+            )
+
+    if known_sources:
+        return known_sources
+
+    return [
+        {
+            "source_key": None,
+            "job_name": "kopia-repository",
+            "source_path": None,
+        }
+    ]
+
+
+def _queue_failure_event(
+    *,
+    diagnostic: str,
+    config: ReporterConfig,
+    state_path: Path,
+    pending_dir: Path,
+    event_type: str,
+    message: str,
+    filename_prefix: str,
+) -> dict[str, int]:
+    """Queue FAILED log events for failures that happen before a snapshot exists."""
+    occurred_at = datetime.now(timezone.utc)
+    event_id = occurred_at.isoformat(timespec="microseconds")
+    diagnostic = diagnostic.strip()
+    if len(diagnostic) > 4000:
+        diagnostic = diagnostic[-4000:]
+
+    created = 0
+    already_pending = 0
+    sources = _known_sources_from_state(state_path)
+
+    for source in sources:
+        job_name = source["job_name"] or "kopia-repository"
+        payload = {
+            "nas_id": config.nas_id,
+            "job_name": job_name,
+            "source_path": source["source_path"],
+            "source_ip": None,
+            "destination_target": None,
+            "backup_engine": config.backup_engine,
+            "status": "FAILED",
+            "snapshot_id": None,
+            "started_at": occurred_at.isoformat(),
+            "ended_at": occurred_at.isoformat(),
+            "duration_seconds": 0,
+            "total_size_bytes": None,
+            "total_files": None,
+            "changed_file_count": None,
+            "cached_files": None,
+            "non_cached_files": None,
+            "dir_count": None,
+            "error_count": 1,
+            "ignored_error_count": 0,
+            "retention_reason": [],
+            "message": message,
+            "raw_payload": {
+                "event_type": event_type,
+                "generated_at": occurred_at.isoformat(),
+                "state_source_key": source["source_key"],
+                "diagnostic": diagnostic,
+            },
+        }
+        source_component = source["source_key"] or source["source_path"] or "repository"
+        pending_name = "__".join(
+            _safe_component(part)
+            for part in (config.nas_id, job_name, source_component, f"{filename_prefix}-{event_id}")
+        )
+        pending_path = pending_dir / f"{pending_name}.json"
+        if _create_pending_once(pending_path, payload):
+            created += 1
+        else:
+            already_pending += 1
+
+    return {
+        "sources": len(sources),
+        "created": created,
+        "already_pending": already_pending,
+    }
+
+
+def queue_repository_error(
+    *,
+    diagnostic: str,
+    config: ReporterConfig,
+    state_path: Path,
+    pending_dir: Path,
+) -> dict[str, int]:
+    """Queue FAILED log events for repository-level Kopia errors."""
+    return _queue_failure_event(
+        diagnostic=diagnostic,
+        config=config,
+        state_path=state_path,
+        pending_dir=pending_dir,
+        event_type="kopia_snapshot_query_failed",
+        message="Kopia repository could not be queried; backup result was reported before snapshot creation.",
+        filename_prefix="repository-error",
+    )
+
+
+def queue_container_not_running(
+    *,
+    diagnostic: str,
+    config: ReporterConfig,
+    state_path: Path,
+    pending_dir: Path,
+) -> dict[str, int]:
+    """Queue FAILED log events when the Kopia container is stopped."""
+    return _queue_failure_event(
+        diagnostic=diagnostic,
+        config=config,
+        state_path=state_path,
+        pending_dir=pending_dir,
+        event_type="kopia_container_not_running",
+        message="Kopia container is not running; backup result was reported before snapshot scan.",
+        filename_prefix="container-not-running",
+    )
+
+
 def build_login_payload(raw: bytes) -> dict[str, str]:
     """Build auth JSON from NUL-delimited username/password supplied by shell."""
 
@@ -368,6 +512,12 @@ def _add_reconcile_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--nas-id", required=True)
 
 
+def _add_queue_error_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--state", required=True, type=Path)
+    parser.add_argument("--pending-dir", required=True, type=Path)
+    parser.add_argument("--nas-id", required=True)
+
+
 def _build_parser() -> argparse.ArgumentParser:
     """Expose tiny subcommands used by the shell wrapper."""
 
@@ -376,6 +526,18 @@ def _build_parser() -> argparse.ArgumentParser:
 
     reconcile_parser = subparsers.add_parser("reconcile", help="normalize snapshots and create pending logs")
     _add_reconcile_args(reconcile_parser)
+
+    queue_error_parser = subparsers.add_parser(
+        "queue-repository-error",
+        help="create FAILED pending logs when Kopia cannot query the repository",
+    )
+    _add_queue_error_args(queue_error_parser)
+
+    queue_container_parser = subparsers.add_parser(
+        "queue-container-not-running",
+        help="create FAILED pending logs when the Kopia container is stopped",
+    )
+    _add_queue_error_args(queue_container_parser)
 
     subparsers.add_parser("login-payload", help="read username/password from stdin and emit JSON")
     subparsers.add_parser("extract-token", help="read login response JSON and print access token")
@@ -390,6 +552,28 @@ def main() -> int:
             return 0
         if args.command == "extract-token":
             print(extract_access_token(json.load(sys.stdin)))
+            return 0
+        if args.command == "queue-repository-error":
+            result = queue_repository_error(
+                diagnostic=sys.stdin.read(),
+                config=ReporterConfig(
+                    nas_id=args.nas_id,
+                ),
+                state_path=args.state,
+                pending_dir=args.pending_dir,
+            )
+            print(json.dumps(result, separators=(",", ":")))
+            return 0
+        if args.command == "queue-container-not-running":
+            result = queue_container_not_running(
+                diagnostic=sys.stdin.read(),
+                config=ReporterConfig(
+                    nas_id=args.nas_id,
+                ),
+                state_path=args.state,
+                pending_dir=args.pending_dir,
+            )
+            print(json.dumps(result, separators=(",", ":")))
             return 0
 
         with args.input.open("r", encoding="utf-8") as handle:
