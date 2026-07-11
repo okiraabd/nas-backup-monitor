@@ -1,391 +1,372 @@
 # NAS & Ceph Backup Monitor
 
-Sistem pemantauan dan pelaporan backup terdistribusi untuk NAS yang menjalankan
-**Kopia** dan storage backend **Ceph Object/S3**. Proyek ini dibuat untuk
-kebutuhan KKP di PT Lucky Mom Indonesia.
+NAS & Ceph Backup Monitor adalah sistem internal untuk melihat hasil backup
+Kopia dari NAS, kesehatan NAS, dan kondisi Ceph Object Storage dari satu
+dashboard. Sistem ini dibuat untuk lingkungan KKP PT Lucky Mom Indonesia.
 
-Inti desainnya sederhana: semua komponen berbicara ke **FastAPI REST API**.
-Frontend, collector, dan reporter NAS tidak pernah mengakses database secara
-langsung.
+Proyek ini adalah sistem observabilitas dan pelaporan, bukan mesin backup:
 
-## Ringkasan komponen
+- Kopia tetap menangani policy, jadwal, retention, dan upload snapshot.
+- NAS reporter hanya membaca hasil snapshot Kopia dan mengirimkannya ke API.
+- Collector hanya membaca metrik dari SNMP Exporter dan endpoint Prometheus
+  Ceph.
+- PostgreSQL hanya diakses oleh API; browser, reporter, dan collector tidak
+  pernah mengaksesnya langsung.
 
-| Komponen | Fungsi |
+## Daftar isi
+
+- [Arsitektur dan aliran data](#arsitektur-dan-aliran-data)
+- [Komponen](#komponen)
+- [Mulai cepat dengan Docker Compose](#mulai-cepat-dengan-docker-compose)
+- [Akun awal dan peran](#akun-awal-dan-peran)
+- [Konfigurasi](#konfigurasi)
+- [Deployment monitoring nyata](#deployment-monitoring-nyata)
+- [Operasional](#operasional)
+- [Pengembangan dan pengujian](#pengembangan-dan-pengujian)
+- [Batasan penting](#batasan-penting)
+- [Dokumentasi per komponen](#dokumentasi-per-komponen)
+
+## Arsitektur dan aliran data
+
+~~~text
+                      Browser
+                         │ HTTPS / HTTP
+                         ▼
+                 Web Dashboard (Nginx)
+                         │ /api reverse proxy
+                         ▼
+NAS Kopia Reporter ───► FastAPI API ◄─── Metric Collector
+ POST /logs/ingest          │              POST /monitor/*
+                             ▼
+                        PostgreSQL
+                             │
+                             ▼
+                     PDF report volume
+
+NAS SNMP ── UDP/161 ──► SNMP Exporter ── HTTP /snmp ──► Metric Collector
+Ceph mgr Prometheus ─────────────────── HTTP /metrics ─► Metric Collector
+~~~
+
+Tiga aliran utama bekerja secara independen:
+
+1. Reporter pada setiap NAS menjalankan pembacaan Kopia berkala. Snapshot baru
+   menjadi backup log; gangguan sebelum snapshot terbentuk juga dikirim sebagai
+   event FAILED.
+2. Collector berjalan terus-menerus. Ia mengumpulkan metrik NAS dan Ceph pada
+   setiap interval, lalu mencatat hasil siklusnya.
+3. Dashboard menggunakan API berautentikasi untuk menampilkan status, mengulas
+   kegagalan, mengelola akun, dan membuat PDF report.
+
+Semua instant waktu disimpan sebagai UTC. API menginterpretasikan periode
+laporan menurut APP_TIMEZONE. Dashboard saat ini secara eksplisit menampilkan
+WIB (Asia/Jakarta); lihat [Batasan penting](#batasan-penting).
+
+## Komponen
+
+| Lokasi | Tanggung jawab |
 |---|---|
-| `api/` | FastAPI pusat data: auth, backup logs, monitoring, reports, user management. |
-| `web-dashboard/` | React SPA yang disajikan oleh Nginx. |
-| `collector/` | Daemon Python untuk membaca SNMP exporter/Ceph metrics dan mengirim metrik ke API. |
-| `snmp-exporter/` | Template konfigurasi SNMP Exporter untuk Synology dan WD PR4100. |
-| `nas-scripts/` | Reporter di NAS untuk membaca snapshot Kopia dan mengirim hasil backup ke API. |
-| `postgres` | Database utama untuk user, log backup, metric, report metadata, dan token revocation. |
+| [api](api/README.md) | FastAPI, JWT/RBAC, PostgreSQL, migrasi Alembic, log backup, metrik, dan PDF report. |
+| [web-dashboard](web-dashboard/README.md) | React SPA untuk operator dan admin, disajikan oleh Nginx di production. |
+| [collector](collector/README.md) | Daemon Python yang mengubah output SNMP Exporter dan Ceph Prometheus menjadi metrik dashboard. |
+| [nas-scripts](nas-scripts/README.md) | Reporter aman di NAS untuk merekonsiliasi snapshot Kopia dan mengirim backup log. |
+| [snmp-exporter](snmp-exporter/README.md) | Template module SNMP Exporter untuk Synology dan WD PR4100. |
+| [snmp-exporter/mibs](snmp-exporter/mibs/README.md) | Panduan penyimpanan MIB vendor saat menghasilkan konfigurasi exporter. |
+| docker-compose.yml | Stack lokal/mandiri: PostgreSQL, API, dashboard, collector, dan profile SNMP Exporter opsional. |
 
-## Fitur utama
+## Mulai cepat dengan Docker Compose
 
-- Dashboard web untuk overview, backup logs, monitoring NAS/Ceph, reports, dan user management.
-- JWT authentication dengan role `admin`, `operator`, `service`, dan `collector`.
-- Backup log ingest idempotent berdasarkan `nas_id + job_name + snapshot_id`.
-- NAS reporter tidak menjalankan backup; Kopia tetap mengatur backup, schedule, retention, dan upload.
-- Metric collector mendukung mode real dan mock.
-- PDF report per periode tanggal lokal.
-- Timezone aplikasi terpusat via `APP_TIMEZONE`, default `Asia/Jakarta`.
-- OpenAPI/Swagger docs informatif di `/docs`.
+### Prasyarat
 
-## Arsitektur
+- Docker Engine dan Docker Compose plugin.
+- Port host yang tersedia: 80 untuk dashboard, 8000 untuk API, dan 5433 untuk
+  PostgreSQL secara default.
+- Untuk demo, tidak diperlukan NAS, Ceph, atau SNMP Exporter karena collector
+  dapat memakai metrik acak.
 
-```text
-NAS Kopia Reporter ── POST /api/logs/ingest ─┐
-                                             │
-Metric Collector ─ POST /api/monitor/ingest ├── FastAPI API ── PostgreSQL
-                                             │
-Web Dashboard ───── GET/POST/PATCH /api/* ──┘
-```
+### 1. Siapkan konfigurasi demo
 
-Untuk monitoring NAS production, NAS cukup expose SNMP UDP/161. Collector tidak
-query SNMP langsung; collector membaca SNMP Exporter:
+Jalankan dari root proyek:
 
-```text
-NAS SNMP ── UDP/161 ──> SNMP Exporter ── /snmp?target=<ip>&module=<module> ──> Collector
-```
-
-Data waktu disimpan dan dibandingkan sebagai UTC. Tampilan dashboard, filter
-tanggal, dan report menggunakan timezone aplikasi (`APP_TIMEZONE`).
-
-## Struktur repositori
-
-```text
-nas-backup-monitor/
-├── api/
-│   ├── app/
-│   │   ├── models/        # SQLAlchemy models
-│   │   ├── routers/       # FastAPI endpoints
-│   │   ├── schemas/       # Pydantic request/response schemas
-│   │   ├── services/      # Business logic
-│   │   ├── config.py      # Environment-based settings
-│   │   ├── database.py    # Engine/session dependency
-│   │   ├── dependencies.py# Auth/RBAC dependencies
-│   │   ├── security.py    # Password hashing + JWT helpers
-│   │   ├── timezone.py    # Local timezone helpers
-│   │   └── main.py        # FastAPI app + OpenAPI metadata
-│   ├── alembic/           # Database migrations
-│   └── tests/             # Pytest suite
-├── web-dashboard/
-│   ├── src/
-│   │   ├── pages/         # Dashboard pages
-│   │   ├── components/    # Layout + UI components
-│   │   └── lib/           # API client, auth, datetime utilities
-│   ├── Dockerfile
-│   └── nginx.conf
-├── collector/
-│   ├── metric_collector.py
-│   ├── snmp_collector.py
-│   └── ceph_collector.py
-├── snmp-exporter/
-│   ├── generator.yml     # Template module Synology/WD untuk snmp_exporter
-│   └── mibs/             # Lokasi sementara MIB saat generate snmp.yml
-├── nas-scripts/
-│   ├── kopia_snapshot_reporter.sh
-│   ├── kopia_reporter.py
-│   └── .env.example
-├── docker-compose.yml
-├── .env.example
-└── README.md
-```
-
-## Quick start dengan Docker
-
-Prasyarat:
-
-- Docker Engine
-- Docker Compose plugin
-
-Jalankan dari root repo:
-
-```bash
+~~~bash
 cp .env.example .env
+~~~
+
+Edit .env sebelum menyalakan stack. Template sengaja berisi placeholder
+database dan collector. Untuk demo yang langsung dapat mengirim metrik, gunakan
+akun collector seed berikut:
+
+~~~env
+APP_ENV=development
+SEED_MODE=demo
+USE_MOCK_METRICS=true
+COLLECTOR_USERNAME=collector
+COLLECTOR_PASSWORD=collector123
+~~~
+
+Pastikan DATABASE_URL konsisten dengan POSTGRES_USER, POSTGRES_PASSWORD, dan
+POSTGRES_DB pada file yang sama. Jangan gunakan password contoh ini di
+environment selain demo.
+
+### 2. Validasi dan jalankan
+
+~~~bash
+docker compose config
 docker compose up -d --build
-```
+docker compose ps
+curl http://localhost:8000/health
+~~~
 
 Layanan default:
 
-| Layanan | URL |
+| Layanan | Alamat default |
 |---|---|
-| Web dashboard | http://localhost |
+| Dashboard | http://localhost |
 | API | http://localhost:8000 |
-| Swagger docs | http://localhost:8000/docs |
-| Health check | http://localhost:8000/health |
+| OpenAPI / Swagger | http://localhost:8000/docs |
+| Liveness API | http://localhost:8000/health |
 
-Container:
+Startup API menunggu PostgreSQL, menjalankan seluruh migrasi Alembic, kemudian
+menjalankan seed sesuai SEED_MODE. Gunakan log berikut bila sebuah service belum
+siap:
 
-| Container | Fungsi | Port host |
-|---|---|---|
-| `bm_postgres` | PostgreSQL | `${POSTGRES_HOST_PORT:-5433}` |
-| `bm_api` | FastAPI + Alembic migration | `${API_HOST_PORT:-8000}` |
-| `bm_web` | Nginx static web dashboard | `${WEB_HOST_PORT:-80}` |
-| `bm_collector` | Metric collector daemon | internal only |
-| `bm_snmp_exporter` | Optional SNMP Exporter profile `snmp` | `${SNMP_EXPORTER_HOST_BIND:-127.0.0.1}:${SNMP_EXPORTER_HOST_PORT:-9116}` |
+~~~bash
+docker compose logs -f api
+docker compose logs -f collector
+~~~
 
-## Environment penting
+## Akun awal dan peran
 
-Semua konfigurasi utama berada di `.env`.
+SEED_MODE=users dan SEED_MODE=demo membuat akun berikut bila belum ada. Seed
+bersifat idempoten; menjalankannya lagi tidak menggandakan data.
 
-| Variable | Fungsi | Catatan |
-|---|---|---|
-| `APP_ENV` | Mode aplikasi: `development` atau `production`. | Production mengaktifkan safety check. |
-| `APP_TIMEZONE` | Timezone bisnis/tampilan. | Default `Asia/Jakarta`. |
-| `WEB_HOST_PORT` | Port dashboard di host. | Default `80`, container tetap `80`. |
-| `API_HOST_PORT` | Port API di host. | Default `8000`, container tetap `8000`. |
-| `POSTGRES_HOST_PORT` | Port PostgreSQL di host. | Default `5433`, container tetap `5432`. |
-| `DATABASE_URL` | URL SQLAlchemy untuk API. | Host internal Compose: `postgres`. |
-| `JWT_SECRET_KEY` | Secret signing JWT. | Wajib kuat di production. |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | Masa berlaku access token. | Default 60 menit. |
-| `SEED_MODE` | Seed saat startup: `none`, `users`, atau `demo`. | `users` hanya akun; `demo` akun + data contoh. |
-| `CORS_ORIGINS` | Origin frontend yang diizinkan. | Pisahkan dengan koma. |
-| `REPORTS_DIR` | Lokasi PDF report di container API. | Default `/app/generated_reports`. |
-| `COLLECTOR_USERNAME` | Akun role `collector`. | Dipakai service collector. |
-| `COLLECTOR_PASSWORD` | Password akun collector. | Jangan commit nilai asli. |
-| `COLLECTOR_INTERVAL_SECONDS` | Interval polling metric. | Default 60 detik. |
-| `USE_MOCK_METRICS` | Aktifkan metric dummy. | Cocok untuk demo. |
-| `SNMP_EXPORTER_IMAGE` | Image SNMP Exporter. | Pin tag di production. |
-| `SNMP_EXPORTER_HOST_BIND` | IP bind port exporter di host. | Default `127.0.0.1`. |
-| `SNMP_EXPORTER_HOST_PORT` | Port exporter di host. | Default `9116`. |
-| `SNMP_EXPORTER_URL` | Endpoint SNMP Exporter terpusat. | Contoh `http://host:9116/snmp`. |
-| `SNMP_DEFAULT_MODULE` | Module fallback SNMP Exporter. | Default `if_mib`. |
-| `NAS_TARGETS` | Target NAS untuk collector. | Format `source_id\|ip\|module`. |
-| `CEPH_METRICS_URL` | Endpoint Prometheus Ceph. | Contoh `http://host:9283/metrics`. |
-
-Contoh hardening production:
-
-```env
-APP_ENV=production
-SEED_MODE=none
-JWT_SECRET_KEY=<hasil-openssl-rand-hex-32>
-CORS_ORIGINS=https://dashboard.example.com
-```
-
-Jika `APP_ENV=production`, API akan gagal start bila `SEED_MODE=demo`,
-`AUTO_SEED=true` legacy, atau `JWT_SECRET_KEY` masih default/lemah. Ini
-disengaja agar konfigurasi demo tidak terbawa ke production.
-
-## Seed akun dan data demo
-
-Seed bersifat idempotent: dijalankan ulang tidak membuat duplikasi user atau
-data demo yang sudah ada.
-
-| Mode | Efek | Penggunaan yang disarankan |
-|---|---|---|
-| `SEED_MODE=none` | Tidak seed apapun. | Production normal setelah bootstrap. |
-| `SEED_MODE=users` | Membuat akun awal saja. | Bootstrap awal tanpa data dummy. |
-| `SEED_MODE=demo` | Membuat akun + backup log/metric demo. | Development/staging/demo. |
-
-Akun awal berikut dibuat pada mode `users` dan `demo` jika belum ada:
-
-| Username | Password | Role | Kegunaan |
+| Username | Password demo | Peran | Tujuan |
 |---|---|---|---|
-| `admin` | `admin123` | `admin` | Login dashboard, full access. |
-| `operator` | `operator` | `operator` | Lihat dashboard, acknowledge, generate report. |
-| `nas-synology` | `synology123` | `service` | NAS reporter Synology/demo. |
-| `nas-wd` | `wd123` | `service` | NAS reporter WD/demo. |
-| `collector` | `collector123` | `collector` | Metric collector. |
+| admin | admin123 | admin | Administrasi penuh dan dashboard. |
+| operator | operator | operator | Operasional dashboard, review kegagalan, dan report. |
+| nas-synology | synology123 | service | Machine account reporter Synology. |
+| nas-wd | wd123 | service | Machine account reporter WD. |
+| collector | collector123 | collector | Machine account metric collector. |
 
-Untuk production, gunakan `SEED_MODE=users` hanya saat bootstrap awal, lalu ubah
-password/nonaktifkan akun yang tidak dipakai. Setelah itu kembalikan ke
-`SEED_MODE=none`.
+Segera setelah bootstrap production:
 
-## Role dan permission
+1. Ubah atau rotasi semua password seed.
+2. Nonaktifkan akun yang tidak dipakai.
+3. Ganti SEED_MODE menjadi none.
+4. Simpan kredensial machine account di secret store atau file dengan izin ketat.
 
-| Aksi | Admin | Operator | Service | Collector |
+Peran menentukan otorisasi API, bukan hanya menu dashboard.
+
+| Kemampuan | Admin | Operator | Service | Collector |
 |---|:---:|:---:|:---:|:---:|
-| Login dashboard | ✅ | ✅ | ❌ | ❌ |
-| Melihat overview/log/monitoring | ✅ | ✅ | ❌ | ❌ |
-| Acknowledge failed backup | ✅ | ✅ | ❌ | ❌ |
-| Generate/download report | ✅ | ✅ | ❌ | ❌ |
-| Delete report | ✅ | ❌ | ❌ | ❌ |
-| Manage users | ✅ | ❌ | ❌ | ❌ |
-| Ingest backup logs | ❌ | ❌ | ✅ | ❌ |
-| Ingest metrics | ❌ | ❌ | ❌ | ✅ |
+| Mendapatkan JWT / melihat profil sendiri | ✓ | ✓ | ✓ | ✓ |
+| Membaca dashboard, log, dan monitoring | ✓ | ✓ | – | – |
+| Acknowledge backup FAILED | ✓ | ✓ | – | – |
+| Membuat / mengunduh report | ✓ | ✓ | – | – |
+| Menghapus report dan mengelola user | ✓ | – | – | – |
+| Mengirim backup log | – | – | ✓ | – |
+| Mengirim metrik dan hasil run collector | – | – | – | ✓ |
+| Membaca status collector | ✓ | ✓ | – | ✓ |
 
-## Endpoint utama
+Machine account secara teknis dapat login untuk memperoleh token, tetapi tidak
+memiliki akses data dashboard. Jangan gunakan akun service atau collector untuk
+pengguna manusia.
 
-Dokumentasi lengkap tersedia di Swagger: `http://localhost:8000/docs`.
+## Konfigurasi
 
-| Area | Endpoint penting |
+Seluruh variabel Compose berada di .env. File itu tidak boleh di-commit.
+Nilai bertanda production harus diputuskan sebelum deployment.
+
+### Aplikasi, database, dan keamanan
+
+| Variabel | Default Compose | Keterangan |
+|---|---:|---|
+| APP_ENV | development | Gunakan production untuk mengaktifkan validasi keamanan API. |
+| APP_TIMEZONE | Asia/Jakarta | Zona IANA untuk batas tanggal API/report. Dashboard saat ini mengasumsikan nilai ini. |
+| POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB | backup_monitor / backup_monitor_pw / backup_monitor | Kredensial database container. |
+| DATABASE_URL | koneksi ke service postgres | URL SQLAlchemy API; harus sejalan dengan kredensial PostgreSQL. |
+| POSTGRES_HOST_PORT | 5433 | Port host opsional untuk administrasi database. |
+| JWT_SECRET_KEY | dev-secret-change-me | Wajib secret acak kuat, minimal 32 karakter, di production. |
+| JWT_ALGORITHM | HS256 | Algoritma penandatanganan JWT. |
+| ACCESS_TOKEN_EXPIRE_MINUTES | 60 | Masa hidup access token. |
+| JWT_ISSUER / JWT_AUDIENCE | backup-monitor-api / backup-monitor-clients | Claim yang divalidasi ketika token dibaca. |
+| CORS_ORIGINS | localhost origins | Origin browser yang diizinkan API. |
+| SEED_MODE | none | none, users, atau demo. |
+| REPORTS_DIR | /app/generated_reports | Lokasi report di container API; dipetakan ke volume reports. |
+
+API menolak startup production bila SEED_MODE=demo, AUTO_SEED=true legacy, atau
+JWT_SECRET_KEY masih lemah/default. APP_ENV=prod juga diperlakukan sebagai
+production.
+
+API_HOST dan API_PORT digunakan oleh proses API lokal. Pada Compose, API selalu
+berjalan pada 0.0.0.0:8000 di dalam jaringan container; API_HOST_PORT hanya
+mengubah pemetaan port host.
+
+### Dashboard
+
+| Variabel | Keterangan |
 |---|---|
-| Auth | `POST /api/auth/login`, `POST /api/auth/refresh`, `POST /api/auth/logout`, `GET /api/auth/me` |
-| Backup logs | `POST /api/logs/ingest`, `GET /api/logs`, `GET /api/logs/{id}`, `PATCH /api/logs/{id}/acknowledge` |
-| Monitoring | `POST /api/monitor/ingest`, `GET /api/monitor/summary`, `GET /api/monitor/activity-trend`, `GET /api/monitor/nas`, `GET /api/monitor/ceph` |
-| Collector | `GET /api/monitor/collector/status`, `POST /api/monitor/collector/run` |
-| Reports | `GET /api/reports`, `POST /api/reports/generate`, `GET /api/reports/{id}/download`, `DELETE /api/reports/{id}` |
-| Users | `GET /api/users`, `POST /api/users`, `PATCH /api/users/{id}`, `PATCH /api/users/{id}/password`, `POST /api/users/{id}/rotate-token` |
+| WEB_HOST_PORT | Pemetaan port host ke Nginx port 80; default 80. |
+| VITE_API_BASE_URL | Hanya untuk build/dev Vite. Tidak diteruskan sebagai build argument oleh Compose saat ini. |
 
-Timestamp request harus membawa timezone offset eksplisit, misalnya
-`2026-07-10T09:00:00+07:00` atau `2026-07-10T02:00:00Z`.
+Pada image Compose, VITE_API_BASE_URL tidak diisi sehingga bundle production
+memakai /api. Nginx meneruskan path itu ke service API. Untuk Vite lokal,
+default juga adalah http://localhost:8000/api; buat
+web-dashboard/.env.local bila API lokal memakai alamat lain.
 
-## Workflow SNMP monitoring NAS
+### Collector dan target monitoring
 
-Production direkomendasikan memakai SNMP Exporter terpusat di server Linux yang
-bisa menjangkau semua NAS. Project ini menyediakan service SNMP Exporter
-opsional lewat Compose profile `snmp`; jika exporter sudah berjalan di server
-lain, cukup arahkan `SNMP_EXPORTER_URL` ke server tersebut.
+| Variabel | Keterangan |
+|---|---|
+| COLLECTOR_USERNAME / COLLECTOR_PASSWORD | Kredensial akun berperan collector. Harus sama dengan akun aktif pada API. |
+| COLLECTOR_INTERVAL_SECONDS | Jeda polling collector, default 60 detik. |
+| USE_MOCK_METRICS | true menghasilkan metrik demo tanpa menghubungi NAS/Ceph. |
+| SNMP_EXPORTER_URL | Endpoint centralized /snmp. Kosong berarti mode exporter legacy per target. |
+| SNMP_DEFAULT_MODULE | Module fallback apabila target tidak menyebutkan module. |
+| NAS_TARGETS | Daftar target dipisahkan koma; format lengkap dijelaskan di README collector. |
+| CEPH_METRICS_URL | Endpoint Prometheus Ceph manager. |
+| SNMP_EXPORTER_IMAGE | Image service exporter opsional; pin versi/digest saat production. |
+| SNMP_EXPORTER_HOST_BIND / SNMP_EXPORTER_HOST_PORT | Bind host untuk exporter Compose; default 127.0.0.1:9116. |
 
-Prinsipnya:
+## Deployment monitoring nyata
 
-1. Synology/WD hanya membuka SNMP UDP/161 ke server SNMP Exporter.
-2. SNMP Exporter memakai module sesuai tipe NAS:
-   - `synology_nas`
-   - `wd_pr4100`
-3. Collector membaca endpoint HTTP exporter:
-   - `/snmp?target=<ip_synology>&module=synology_nas`
-   - `/snmp?target=<ip_wd>&module=wd_pr4100`
-4. Collector menormalisasi hasilnya menjadi metric dashboard:
-   - `cpu_usage`
-   - `ram_used_pct`
-   - `disk_used_pct`
-   - `temperature`
-   - `system_uptime`
-   - `snmp_reachable`
+### NAS dan SNMP Exporter
 
-Menjalankan SNMP Exporter bawaan project:
+Untuk production, tempatkan SNMP Exporter pada host yang dapat menjangkau NAS
+melalui UDP/161. NAS hanya perlu mengizinkan UDP/161 dari host exporter, bukan
+dari collector atau jaringan luas.
 
-```bash
+~~~text
+NAS target                  SNMP Exporter host              Collector
+192.168.24.5 ── UDP/161 ──► /snmp?target=...&module=... ──► HTTP
+~~~
+
+Gunakan module synology_nas untuk Synology dan wd_pr4100 untuk WD PR4100.
+Panduan pembuatan dan pengujian konfigurasi ada di
+[README SNMP Exporter](snmp-exporter/README.md).
+
+Untuk memakai service exporter bawaan proyek:
+
+~~~bash
 cp snmp-exporter/snmp.yml.example snmp-exporter/snmp.yml
-# default SNMP v2 community adalah "public"; edit jika NAS memakai community lain
-docker compose --profile snmp up -d snmp-exporter
-```
+# Ganti community public dengan secret environment Anda bila diperlukan.
+docker compose --profile snmp up -d snmp-exporter collector
+~~~
 
-Contoh konfigurasi collector jika memakai exporter bawaan Compose:
+Konfigurasi minimum collector nyata:
 
-```env
+~~~env
+USE_MOCK_METRICS=false
 SNMP_EXPORTER_URL=http://snmp-exporter:9116/snmp?auth=kkp_snmp_v2
 NAS_TARGETS=synology-ds1522|192.168.24.5|synology_nas,wd-pr4100|192.168.24.4|wd_pr4100
-```
+CEPH_METRICS_URL=http://192.168.24.6:9283/metrics
+~~~
 
-Contoh jika memakai exporter external:
+### Reporter Kopia pada NAS
 
-```env
-SNMP_EXPORTER_URL=http://snmp-exporter.example.lan:9116/snmp?auth=kkp_snmp_v2
-NAS_TARGETS=synology-ds1522|192.168.24.5|synology_nas,wd-pr4100|192.168.24.4|wd_pr4100
-```
+Instal reporter ke path persistent di setiap NAS, misalnya
+/opt/nas-backup-monitor. Reporter memakai Docker CLI untuk membaca container
+Kopia, menyimpan antrean lokal, dan mengirim log melalui HTTPS/HTTP API.
+Kopia tetap merupakan pemilik jadwal backup.
 
-Template generator SNMP Exporter ada di [snmp-exporter/README.md](snmp-exporter/README.md).
+Ikuti [README NAS reporter](nas-scripts/README.md) untuk instalasi, permission,
+cron, dan perilaku retry queue.
 
-## Workflow NAS reporter
+## Operasional
 
-Reporter NAS berada di `nas-scripts/`.
+### Pemeriksaan rutin
 
-Prinsipnya:
-
-1. Kopia tetap menjalankan backup sesuai policy/schedule.
-2. Reporter membaca `kopia snapshot list --json` dari container Kopia.
-3. Reporter merekonsiliasi snapshot baru berdasarkan snapshot ID.
-4. Jika repository tidak bisa dibuka atau container Kopia berhenti, reporter membuat event `FAILED` tanpa snapshot ID.
-5. Payload dikirim ke `POST /api/logs/ingest`.
-6. Jika API/network bermasalah, payload disimpan di pending queue lokal.
-
-Instalasi production NAS direkomendasikan di satu folder:
-
-```text
-/opt/nas-backup-monitor/
-  kopia_snapshot_reporter.sh
-  kopia_reporter.py
-  .env
-  secrets/
-  runtime/
-  logs/
-```
-
-Lihat detail di [nas-scripts/README.md](nas-scripts/README.md).
-
-## Development
-
-### API
-
-Disarankan menjalankan test API di container agar sama dengan runtime:
-
-```bash
-docker compose run --rm --no-deps --entrypoint python api -m pytest -q
-```
-
-Untuk development lokal:
-
-```bash
-cd api
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-alembic upgrade head
-uvicorn app.main:app --reload --port 8000
-```
-
-### Web dashboard
-
-```bash
-cd web-dashboard
-npm install
-npm run dev
-```
-
-Frontend dev server berjalan di `http://localhost:5173`. API base URL untuk dev
-dibaca dari `VITE_API_BASE_URL` di root `.env`.
-
-### Rebuild service
-
-```bash
-docker compose up -d --build api
-docker compose up -d --build web-dashboard
-docker compose up -d --build collector
-```
-
-`docker compose restart` hanya restart container lama; gunakan `up -d --build`
-jika ada perubahan kode.
-
-## Operasional dan best practice
-
-- Jangan commit `.env`, password, token, file PDF report, cache, atau folder runtime.
-- Gunakan `APP_ENV=production`, `SEED_MODE=none`, dan JWT secret kuat untuk production.
-- Jalankan API di balik TLS/reverse proxy untuk akses production.
-- Batasi exposure PostgreSQL; port host DB hanya perlu untuk administrasi lokal.
-- Backup volume Docker `pgdata` dan `reports` jika data perlu dipertahankan.
-- Untuk NAS, simpan reporter di path persistent seperti `/opt/nas-backup-monitor`.
-
-## Troubleshooting
-
-### API tidak memuat kode terbaru
-
-```bash
-docker compose up -d --build api
-docker compose logs -f api
-```
-
-### Reset database dan report volume
-
-```bash
-docker compose down -v
-docker compose up -d --build
-```
-
-Perintah ini menghapus volume PostgreSQL dan reports.
-
-### Collector tidak mengirim metric
-
-```bash
-docker compose logs -f collector
-```
-
-Periksa:
-
-- `COLLECTOR_USERNAME` / `COLLECTOR_PASSWORD`
-- `NAS_TARGETS`
-- `CEPH_METRICS_URL`
-- konektivitas ke SNMP exporter NAS dan Ceph endpoint
-
-### Cek migration dan health API
-
-```bash
+~~~bash
+docker compose ps
 docker compose exec api alembic current
 curl http://localhost:8000/health
-```
+docker compose logs --tail=100 collector
+~~~
 
-## Lisensi / konteks
+Hal yang perlu diperiksa pada dashboard:
 
-Proyek ini dikembangkan sebagai bagian dari program KKP dan bersifat internal
-untuk PT Lucky Mom Indonesia.
+- backup FAILED yang belum di-acknowledge;
+- status NAS fresh, stale, atau offline;
+- ceph_reachable, health_status, dan kapasitas Ceph;
+- status run collector terakhir dan apakah is_mock bernilai false di production.
+
+Freshness ditentukan API, bukan browser: fresh hingga 90 detik, stale hingga
+300 detik, lalu offline. Nilai ini saat ini bersifat konstan di kode.
+
+### Data persisten dan backup
+
+Compose menyimpan data pada dua named volume:
+
+| Volume | Isi |
+|---|---|
+| pgdata | User, backup log, metric history, metadata report, dan token revoke. |
+| reports | File PDF report yang dibuat API. |
+
+Cadangkan PostgreSQL secara teratur dengan mekanisme PostgreSQL yang sesuai
+dengan kebijakan organisasi, dan cadangkan volume reports jika PDF harus
+dipertahankan. Uji proses restore pada lingkungan terpisah. Jangan gunakan
+docker compose down -v kecuali memang ingin menghapus kedua volume tersebut.
+
+### Upgrade
+
+~~~bash
+docker compose pull
+docker compose up -d --build
+docker compose exec api alembic current
+~~~
+
+Entrypoint API menjalankan alembic upgrade head saat startup. Tetap ambil backup
+database sebelum upgrade production dan review migrasi di api/alembic/versions.
+
+## Pengembangan dan pengujian
+
+Perintah berikut dijalankan dari root proyek.
+
+| Area | Perintah |
+|---|---|
+| API | docker compose run --rm --no-deps --entrypoint python api -m pytest -q |
+| Collector | docker compose run --rm --no-deps --entrypoint python collector -m unittest discover -s tests -v |
+| Dashboard lint | cd web-dashboard && npm ci && npm run lint |
+| Dashboard build | cd web-dashboard && npm ci && npm run build |
+| Reporter NAS | Lihat perintah container test pada README NAS reporter. |
+
+Test API memakai SQLite in-memory dan tidak memerlukan PostgreSQL. Test
+collector dan reporter menguji parser/normalisasi dengan fixture serta mock;
+keduanya tidak menghubungi perangkat nyata.
+
+Untuk mengembangkan service tertentu, lihat README di direktori komponen.
+Setelah perubahan Dockerfile atau kode service, gunakan docker compose up -d
+--build NAMA_SERVICE; restart saja tidak membangun image baru.
+
+## Batasan penting
+
+- Tidak ada mekanisme retention atau agregasi metric history pada aplikasi.
+  Tabel metrics akan terus bertambah; rencanakan retensi/arsip di tingkat
+  operasional sebelum production jangka panjang.
+- Collector nyata melaporkan read_iops dan write_iops Ceph sebagai 0, karena
+  endpoint Prometheus yang dibaca menyediakan counter dan proyek ini belum
+  menghitung rate antar-sampel.
+- Jika SNMP atau Ceph tidak dapat diakses, collector tetap mengirim metrik
+  fallback dengan reachability 0 bila API dapat dijangkau. Periksa metrik
+  reachability, bukan hanya status proses collector.
+- Tombol Run once pada dashboard mencatat permintaan PENDING. Collector daemon
+  yang mendeteksinya pada polling berikutnya yang benar-benar menjalankan
+  pengambilan data.
+- API mendukung APP_TIMEZONE IANA apa pun yang valid, tetapi dashboard saat ini
+  mengformat dan membentuk filter tanggal sebagai Asia/Jakarta/WIB. Pertahankan
+  APP_TIMEZONE=Asia/Jakarta sampai frontend dibuat timezone-aware.
+- Aplikasi tidak mengirim alert e-mail, chat, atau paging. Dashboard dan API
+  menyediakan data yang dapat diintegrasikan ke mekanisme alert eksternal.
+
+## Dokumentasi per komponen
+
+- [API: endpoint, RBAC, migrasi, dan PDF report](api/README.md)
+- [Web dashboard: development, build, routing, dan koneksi API](web-dashboard/README.md)
+- [Metric collector: mode mock/real dan normalisasi metrik](collector/README.md)
+- [Kopia NAS reporter: instalasi, antrean, dan cron](nas-scripts/README.md)
+- [SNMP Exporter: module, generator, dan hardening jaringan](snmp-exporter/README.md)
+- [MIB vendor: struktur dan sumber file](snmp-exporter/mibs/README.md)
+
+## Lisensi dan konteks
+
+Proyek ini dikembangkan untuk kebutuhan internal KKP PT Lucky Mom Indonesia.
+Tidak ada lisensi open-source yang dinyatakan dalam repositori ini.
