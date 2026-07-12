@@ -15,26 +15,41 @@ from app.services.pdf_service import build_report_pdf
 from app.timezone import local_date_range_bounds_utc
 
 
-def _build_activity_days(db: Session, start: datetime, end: datetime) -> list[dict]:
-    """Build per-day success/failed counts for bar chart in the report."""
-    from sqlalchemy import func, case
-    from app.models.backup_log import STATUS_SUCCESS, STATUS_FAILED
+from datetime import timedelta
+from app.timezone import app_zone
+from app.models.backup_log import STATUS_SUCCESS, STATUS_FAILED
 
-    rows = db.execute(
-        select(
-            func.date(BackupLog.created_at).label("day"),
-            func.count(case((BackupLog.status == STATUS_SUCCESS, 1))).label("success"),
-            func.count(case((BackupLog.status == STATUS_FAILED,  1))).label("failed"),
-        )
-        .where(BackupLog.created_at >= start, BackupLog.created_at <= end)
-        .group_by(func.date(BackupLog.created_at))
-        .order_by(func.date(BackupLog.created_at))
-    ).fetchall()
-
-    return [
-        {"date": str(row.day), "success": row.success, "failed": row.failed}
-        for row in rows
-    ]
+def _build_activity_days_from_logs(logs: list, date_from: date, date_to: date) -> list[dict]:
+    """Build per-day success/failed counts for bar chart using the local timezone."""
+    zone = app_zone()
+    
+    days_map = {}
+    curr = date_from
+    while curr <= date_to:
+        days_map[curr] = {"success": 0, "failed": 0}
+        curr += timedelta(days=1)
+        
+    for log in logs:
+        dt = log.created_at
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        local_dt = dt.astimezone(zone)
+        local_date = local_dt.date()
+        
+        if local_date in days_map:
+            if log.status == STATUS_SUCCESS:
+                days_map[local_date]["success"] += 1
+            elif log.status == STATUS_FAILED:
+                days_map[local_date]["failed"] += 1
+                
+    result = []
+    for d, counts in sorted(days_map.items()):
+        result.append({
+            "date": str(d),
+            "success": counts["success"],
+            "failed": counts["failed"]
+        })
+    return result
 
 
 def generate_report(
@@ -59,7 +74,7 @@ def generate_report(
     ).all()
 
     # Daily activity data for the bar chart
-    activity_days = _build_activity_days(db, start, end)
+    activity_days = _build_activity_days_from_logs(logs, date_from, date_to)
 
     # Latest monitoring snapshot for all sources.
     monitoring = []
