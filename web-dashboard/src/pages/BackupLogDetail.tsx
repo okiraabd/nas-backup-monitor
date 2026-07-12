@@ -1,9 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, CheckCircle2, Clock, XCircle, AlertTriangle } from "lucide-react";
+import { useParams, Link, useNavigate } from "react-router-dom";
+import { ArrowLeft, CheckCircle2, Clock, XCircle, AlertTriangle, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { z } from "zod";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 
 import { api } from "@/lib/api";
+import { formatBytes } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { formatDateTimeWib, formatLongDateTimeWib } from "@/lib/datetime";
 import { Button } from "@/components/ui/button";
@@ -11,14 +15,26 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+
+const acknowledgeSchema = z.object({
+  remark: z.string().min(1, "Remark is required").max(2000, "Remark is too long"),
+});
 
 export function BackupLogDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [remark, setRemark] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+
+  const ackForm = useForm<z.infer<typeof acknowledgeSchema>>({
+    resolver: zodResolver(acknowledgeSchema),
+    defaultValues: {
+      remark: "",
+    },
+  });
 
   const { data: log, isLoading } = useQuery({
     queryKey: ["log", id],
@@ -29,13 +45,24 @@ export function BackupLogDetail() {
   });
 
   const acknowledgeMutation = useMutation({
-    mutationFn: async (remarkText: string) => {
-      await api.patch(`/logs/${id}/acknowledge`, { remark: remarkText });
+    mutationFn: async (values: z.infer<typeof acknowledgeSchema>) => {
+      await api.patch(`/logs/${id}/acknowledge`, { remark: values.remark });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["log", id] });
       setDialogOpen(false);
-      setRemark("");
+      ackForm.reset();
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      await api.delete("/logs/bulk", { data: { log_ids: [parseInt(id!)] } });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["logs"] });
+      setDeleteConfirmOpen(false);
+      navigate("/dashboard/logs");
     },
   });
 
@@ -78,29 +105,32 @@ export function BackupLogDetail() {
                 <DialogHeader>
                   <DialogTitle>Acknowledge Failure</DialogTitle>
                   <DialogDescription>
-                    Mark this failure as reviewed. You can optionally add a remark about how it was resolved.
+                    Mark this failure as reviewed. You must add a remark about how it was resolved.
                   </DialogDescription>
                 </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="remark">Remark</Label>
-                    <Input
-                      id="remark"
-                      value={remark}
-                      onChange={(e) => setRemark(e.target.value)}
-                      placeholder="e.g., Network issue resolved, triggered manual backup"
+                <Form {...ackForm}>
+                  <form onSubmit={ackForm.handleSubmit((v) => acknowledgeMutation.mutate(v))} className="space-y-4 py-4">
+                    <FormField
+                      control={ackForm.control}
+                      name="remark"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Remark</FormLabel>
+                          <FormControl>
+                            <Input placeholder="e.g., Network issue resolved, triggered manual backup" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
                     />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-                  <Button
-                    onClick={() => acknowledgeMutation.mutate(remark)}
-                    disabled={acknowledgeMutation.isPending}
-                  >
-                    {acknowledgeMutation.isPending ? "Saving..." : "Acknowledge"}
-                  </Button>
-                </DialogFooter>
+                    <DialogFooter>
+                      <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+                      <Button type="submit" disabled={acknowledgeMutation.isPending}>
+                        {acknowledgeMutation.isPending ? "Saving..." : "Acknowledge"}
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </Form>
               </DialogContent>
             </Dialog>
           )}
@@ -161,7 +191,7 @@ export function BackupLogDetail() {
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <div className="font-medium text-muted-foreground">Total Size</div>
-                <div>{log.total_size_bytes ? `${(log.total_size_bytes / 1024 / 1024).toFixed(2)} MB` : "-"}</div>
+                <div>{log.total_size_bytes ? formatBytes(log.total_size_bytes) : "-"}</div>
               </div>
               <div>
                 <div className="font-medium text-muted-foreground">Total Files</div>
@@ -193,6 +223,31 @@ export function BackupLogDetail() {
           </CardContent>
         </Card>
       </div>
+
+      {user?.role === "admin" && (
+        <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+          <DialogTrigger asChild>
+            <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/10 ml-auto self-start">
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete Log
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Confirm Delete</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to permanently delete this backup log? This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
+              <Button variant="destructive" onClick={() => deleteMutation.mutate()} disabled={deleteMutation.isPending}>
+                {deleteMutation.isPending ? "Deleting..." : "Delete"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

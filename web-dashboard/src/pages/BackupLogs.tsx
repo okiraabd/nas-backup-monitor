@@ -4,6 +4,10 @@ import { api } from "@/lib/api";
 import { formatDateTimeWib, formatTimeWib, jakartaDateToUtcRange } from "@/lib/datetime";
 import { Link, useSearchParams } from "react-router-dom";
 import { Eye, CheckCircle2, XCircle, History, X, RefreshCw, Trash2 } from "lucide-react";
+import { z } from "zod";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useAuth } from "@/lib/auth";
 
 import {
   Table,
@@ -17,10 +21,22 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Checkbox } from "@/components/ui/checkbox";
+
+const bulkPeriodSchema = z.object({
+  date_from: z.string().min(1, "Start date is required"),
+  date_to: z.string().min(1, "End date is required"),
+}).refine((data) => data.date_from <= data.date_to, {
+  message: "Start date must be on or before end date",
+  path: ["date_from"],
+});
 
 export function BackupLogs() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const [searchParams, setSearchParams] = useSearchParams();
   const initialDate = searchParams.get("date") || "";
 
@@ -31,12 +47,21 @@ export function BackupLogs() {
   const [dateFilter, setDateFilter] = useState(initialDate);
   const [autoRefresh, setAutoRefresh] = useState("0");
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
-  const [bulkDateFrom, setBulkDateFrom] = useState("");
-  const [bulkDateTo, setBulkDateTo] = useState("");
+  const [selectedLogs, setSelectedLogs] = useState<Set<number>>(new Set());
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id?: number, bulk?: boolean, period?: { date_from: string, date_to: string } } | null>(null);
+  
   const pageSize = 10;
   const dateFromUrl = searchParams.get("date") || "";
   const refetchInterval = autoRefresh !== "0" ? parseInt(autoRefresh) * 1000 : false;
   const queryClient = useQueryClient();
+
+  const periodForm = useForm<z.infer<typeof bulkPeriodSchema>>({
+    resolver: zodResolver(bulkPeriodSchema),
+    defaultValues: {
+      date_from: "",
+      date_to: "",
+    },
+  });
 
   const { data: nasList } = useQuery({
     queryKey: ["nas-list"],
@@ -85,27 +110,31 @@ export function BackupLogs() {
   };
 
   const bulkDeleteMutation = useMutation({
-    mutationFn: async ({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) => {
-      const payload: any = {};
-      if (dateFrom) {
-        const from = jakartaDateToUtcRange(dateFrom);
-        if (from) payload.date_from = from.date_from;
+    mutationFn: async (payload: { log_ids?: number[]; date_from?: string; date_to?: string }) => {
+      const apiPayload: any = {};
+      if (payload.log_ids) apiPayload.log_ids = payload.log_ids;
+      if (payload.date_from) {
+        const from = jakartaDateToUtcRange(payload.date_from);
+        if (from) apiPayload.date_from = from.date_from;
       }
-      if (dateTo) {
-        const to = jakartaDateToUtcRange(dateTo);
-        if (to) payload.date_to = to.date_to;
+      if (payload.date_to) {
+        const to = jakartaDateToUtcRange(payload.date_to);
+        if (to) apiPayload.date_to = to.date_to;
       }
-      const res = await api.delete("/logs/bulk", { data: payload });
+      const res = await api.delete("/logs/bulk", { data: apiPayload });
       return res.data;
     },
-    onSuccess: (result) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["logs"] });
-      setBulkDeleteOpen(false);
-      setBulkDateFrom("");
-      setBulkDateTo("");
-      alert(`✅ ${result.deleted_count} log records deleted.`);
+      setSelectedLogs(new Set());
+      setDeleteConfirm(null);
     },
   });
+
+  const onPeriodSubmit = (values: z.infer<typeof bulkPeriodSchema>) => {
+    setBulkDeleteOpen(false);
+    setDeleteConfirm({ period: { date_from: values.date_from, date_to: values.date_to } });
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -154,70 +183,126 @@ export function BackupLogs() {
           >
             <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setBulkDeleteOpen(true)}
-            title="Delete Logs by Period"
-            className="text-destructive border-destructive/30 hover:bg-destructive/10"
-          >
-            <Trash2 className="h-4 w-4 mr-1" />
-            Delete by Period
-          </Button>
         </div>
       </div>
 
-      {/* Bulk Delete Dialog */}
+      {/* Confirm Delete Dialog */}
+      <Dialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Delete</DialogTitle>
+            <DialogDescription>
+              {deleteConfirm?.period 
+                ? `Are you sure you want to permanently delete all logs from ${deleteConfirm.period.date_from} to ${deleteConfirm.period.date_to}?`
+                : deleteConfirm?.bulk 
+                  ? `Are you sure you want to delete ${selectedLogs.size} selected logs?` 
+                  : 'Are you sure you want to delete this log?'
+              }
+              {" "}This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
+            <Button variant="destructive" disabled={bulkDeleteMutation.isPending} onClick={() => {
+              if (deleteConfirm?.period) {
+                bulkDeleteMutation.mutate(deleteConfirm.period);
+              } else if (deleteConfirm?.bulk) {
+                bulkDeleteMutation.mutate({ log_ids: Array.from(selectedLogs) });
+              } else if (deleteConfirm?.id) {
+                bulkDeleteMutation.mutate({ log_ids: [deleteConfirm.id] });
+              }
+            }}>
+              {bulkDeleteMutation.isPending ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Delete Period Dialog */}
       <Dialog open={bulkDeleteOpen} onOpenChange={(open) => {
         setBulkDeleteOpen(open);
-        if (!open) { setBulkDateFrom(""); setBulkDateTo(""); }
+        if (!open) periodForm.reset();
       }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete Logs by Period</DialogTitle>
             <DialogDescription>
               Permanently delete all backup logs within the selected date range.
-              <br /><br />
-              <span className="text-destructive font-medium">⚠️ Warning:</span> This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-2">
-            <div className="grid gap-1.5">
-              <label className="text-sm font-medium" htmlFor="bulk-date-from">From Date</label>
-              <Input
-                id="bulk-date-from"
-                type="date"
-                value={bulkDateFrom}
-                onChange={(e) => setBulkDateFrom(e.target.value)}
-              />
-            </div>
-            <div className="grid gap-1.5">
-              <label className="text-sm font-medium" htmlFor="bulk-date-to">To Date</label>
-              <Input
-                id="bulk-date-to"
-                type="date"
-                value={bulkDateTo}
-                onChange={(e) => setBulkDateTo(e.target.value)}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setBulkDeleteOpen(false)}>Cancel</Button>
-            <Button
-              variant="destructive"
-              disabled={(!bulkDateFrom && !bulkDateTo) || bulkDeleteMutation.isPending}
-              onClick={() => bulkDeleteMutation.mutate({ dateFrom: bulkDateFrom, dateTo: bulkDateTo })}
-            >
-              {bulkDeleteMutation.isPending ? "Deleting..." : "Delete Logs"}
-            </Button>
-          </DialogFooter>
+          <Form {...periodForm}>
+            <form onSubmit={periodForm.handleSubmit(onPeriodSubmit)} className="space-y-4 py-2">
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={periodForm.control}
+                  name="date_from"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Start Date</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} onClick={(e) => e.currentTarget.showPicker && e.currentTarget.showPicker()} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={periodForm.control}
+                  name="date_to"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>End Date</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} onClick={(e) => e.currentTarget.showPicker && e.currentTarget.showPicker()} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <DialogFooter className="pt-4">
+                <Button type="button" variant="outline" onClick={() => setBulkDeleteOpen(false)}>Cancel</Button>
+                <Button type="submit" variant="destructive" disabled={bulkDeleteMutation.isPending}>
+                  {bulkDeleteMutation.isPending ? "Deleting..." : "Delete Logs"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
 
-
       <Card>
-        <CardHeader className="pb-3">
-          <div className="flex flex-wrap items-center gap-4">
+        <CardHeader className="pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+            <div>
+              <CardTitle>Backup Log Records</CardTitle>
+              <CardDescription>View all backup history, statuses, and performance metrics</CardDescription>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {isAdmin && selectedLogs.size > 0 && (
+                <Button 
+                  variant="destructive" 
+                  size="sm"
+                  onClick={() => setDeleteConfirm({ bulk: true })}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Selected ({selectedLogs.size})
+                </Button>
+              )}
+              {isAdmin && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setBulkDeleteOpen(true)}
+                >
+                  <Trash2 className="mr-2 h-4 w-4 text-destructive" />
+                  Delete by Period
+                </Button>
+              )}
+            </div>
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-3">
             <div className="w-56">
               <Select value={nasId} onValueChange={(val) => { setNasId(val); setPage(1); }}>
                 <SelectTrigger>
@@ -269,6 +354,7 @@ export function BackupLogs() {
                   setSearchParams(searchParams);
                   setPage(1);
                 }}
+                onClick={(e) => e.currentTarget.showPicker && e.currentTarget.showPicker()}
                 className="pr-8 text-sm"
               />
               {dateFilter && (
@@ -287,6 +373,20 @@ export function BackupLogs() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  {isAdmin && (
+                    <TableHead className="w-[50px]">
+                      <Checkbox 
+                        checked={data?.items?.length > 0 && selectedLogs.size === data.items.length}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedLogs(new Set(data.items.map((l: any) => l.id)));
+                          } else {
+                            setSelectedLogs(new Set());
+                          }
+                        }}
+                      />
+                    </TableHead>
+                  )}
                   <TableHead>Time</TableHead>
                   <TableHead>NAS ID</TableHead>
                   <TableHead>Job Name</TableHead>
@@ -298,22 +398,38 @@ export function BackupLogs() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center">
+                    <TableCell colSpan={isAdmin ? 7 : 6} className="h-24 text-center">
                       Loading...
                     </TableCell>
                   </TableRow>
                 ) : data?.items?.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-32 text-center">
+                    <TableCell colSpan={isAdmin ? 7 : 6} className="h-32 text-center">
                       <div className="flex flex-col items-center justify-center text-muted-foreground">
                         <History className="h-8 w-8 mb-2 opacity-20" />
-                        <p>No backup logs found.</p>
+                        <p>{(nasId !== "ALL" || status !== "ALL" || jobName !== "" || dateFilter !== "") 
+                          ? "No backup logs found matching criteria." 
+                          : "No backup logs generated yet."}
+                        </p>
                       </div>
                     </TableCell>
                   </TableRow>
                 ) : (
                   data?.items?.map((log: any) => (
                     <TableRow key={log.id}>
+                      {isAdmin && (
+                        <TableCell>
+                          <Checkbox 
+                            checked={selectedLogs.has(log.id)}
+                            onCheckedChange={(checked) => {
+                              const newSet = new Set(selectedLogs);
+                              if (checked) newSet.add(log.id);
+                              else newSet.delete(log.id);
+                              setSelectedLogs(newSet);
+                            }}
+                          />
+                        </TableCell>
+                      )}
                       <TableCell className="font-medium whitespace-nowrap">
                         {formatDateTimeWib(log.created_at)}
                       </TableCell>
