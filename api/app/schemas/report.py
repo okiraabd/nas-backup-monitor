@@ -33,3 +33,12 @@ class ReportOut(BaseModel):
     generated_by: int | None = Field(None, description="User ID that generated the report.")
     generated_at: datetime = Field(..., description="Server-side report generation time.")
     file_size_bytes: int | None = Field(None, description="PDF file size in bytes.")
+
+class ReportBulkDelete(BaseModel):
+    """Request body for bulk deleting reports."""
+    report_ids: list[int] = Field(default_factory=list, description="List of report IDs to delete.")
+    date_from: date | None = Field(None, description="Delete reports generated on or after this date.")
+    date_to: date | None = Field(None, description="Delete reports generated on or before this date.")
+
+class BulkDeleteResponse(BaseModel):
+    deleted_count: int = Field(..., description="Number of reports deleted.")
