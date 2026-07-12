@@ -119,7 +119,10 @@ export function Overview() {
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {/* Total NAS */}
-        <Card>
+        <Card 
+          className="hover:border-primary/50 cursor-pointer transition-colors hover:bg-muted/10"
+          onClick={() => navigate('/dashboard/monitor/nas')}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total NAS Monitored</CardTitle>
             <Server className="h-4 w-4 text-muted-foreground" />
@@ -141,7 +144,10 @@ export function Overview() {
         </Card>
 
         {/* NAS Freshness */}
-        <Card>
+        <Card 
+          className="hover:border-primary/50 cursor-pointer transition-colors hover:bg-muted/10"
+          onClick={() => navigate('/dashboard/monitor/nas')}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">NAS Health</CardTitle>
             <ActivityIcon />
@@ -168,7 +174,10 @@ export function Overview() {
         </Card>
 
         {/* Ceph Status */}
-        <Card>
+        <Card 
+          className="hover:border-primary/50 cursor-pointer transition-colors hover:bg-muted/10"
+          onClick={() => navigate('/dashboard/monitor/ceph')}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Ceph Cluster</CardTitle>
             <Database className="h-4 w-4 text-muted-foreground" />
@@ -204,7 +213,10 @@ export function Overview() {
         </Card>
 
         {/* Ceph Storage */}
-        <Card>
+        <Card 
+          className="hover:border-primary/50 cursor-pointer transition-colors hover:bg-muted/10"
+          onClick={() => navigate('/dashboard/monitor/ceph')}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Ceph Storage Used</CardTitle>
             <Database className="h-4 w-4 text-muted-foreground" />
