@@ -96,11 +96,11 @@ run_reporter_python() {
 # File state/pending dipisah per NAS agar satu host bisa dipakai ulang di lab.
 safe_nas=$(printf '%s' "$NAS_ID" | tr -c 'A-Za-z0-9_.-' '_')
 STATE_FILE="$STATE_DIR/${safe_nas}.json"
-RAW_FILE=$(mktemp "$TMP_DIR/kopia-snapshots.XXXXXX.json")
-ERROR_FILE=$(mktemp "$TMP_DIR/kopia-snapshots.XXXXXX.err")
-LOGIN_BODY=$(mktemp "$TMP_DIR/api-login.XXXXXX.json")
-LOGIN_REQUEST=$(mktemp "$TMP_DIR/api-login-request.XXXXXX.json")
-RESPONSE_BODY=$(mktemp "$TMP_DIR/api-response.XXXXXX.json")
+RAW_FILE=$(mktemp "$TMP_DIR/kopia-snapshots.json.XXXXXX")
+ERROR_FILE=$(mktemp "$TMP_DIR/kopia-snapshots.err.XXXXXX")
+LOGIN_BODY=$(mktemp "$TMP_DIR/api-login.json.XXXXXX")
+LOGIN_REQUEST=$(mktemp "$TMP_DIR/api-login-request.json.XXXXXX")
+RESPONSE_BODY=$(mktemp "$TMP_DIR/api-response.json.XXXXXX")
 LOCK_DIR=""
 
 cleanup() {
