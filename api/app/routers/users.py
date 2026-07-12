@@ -276,19 +276,13 @@ def rotate_token(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ) -> RotateTokenResponse:
-    """Generate a new password for a service/collector account (shown once).
+    """Generate a new password for an account (shown once).
 
-    Only applicable to machine accounts (service/collector). Bumps token_version
-    to invalidate old tokens. Role: admin.
+    Bumps token_version to invalidate old tokens. Role: admin.
     """
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
-    if user.role not in {ROLE_SERVICE, ROLE_COLLECTOR}:
-        raise HTTPException(
-            status_code=400,
-            detail="Token rotation is only for service/collector accounts",
-        )
     new_password = generate_password()
     user.password_hash = hash_password(new_password)
     user.token_version += 1

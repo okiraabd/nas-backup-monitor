@@ -22,6 +22,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth";
 
 const formSchema = z.object({
@@ -51,8 +53,8 @@ export function Users() {
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("ALL");
   const [deleteConfirm, setDeleteConfirm] = useState<{id: number, username: string} | null>(null);
-  const [rotateConfirm, setRotateConfirm] = useState<{id: number, username: string} | null>(null);
   const [resetPasswordTarget, setResetPasswordTarget] = useState<{id: number, username: string, role: string} | null>(null);
+  const [passwordMethod, setPasswordMethod] = useState<"manual" | "generate">("manual");
   const [resetPasswordError, setResetPasswordError] = useState("");
   const [showInactive, setShowInactive] = useState(false);
   const [reactivateConfirm, setReactivateConfirm] = useState<{id: number, username: string} | null>(null);
@@ -145,7 +147,7 @@ export function Users() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
-      setRotateConfirm(null);
+      setResetPasswordTarget(null);
       setTokenResult({ username: data.username, token: data.password });
     },
   });
@@ -363,29 +365,6 @@ export function Users() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!rotateConfirm} onOpenChange={(open) => !open && setRotateConfirm(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Confirm Rotate Token</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to generate a new password/token for <strong>{rotateConfirm?.username}</strong>? 
-              <br/><br/>
-              <span className="text-destructive font-medium">Warning:</span> All existing active sessions and scripts using the current token will instantly be unauthorized and must be updated with the new token.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRotateConfirm(null)}>Cancel</Button>
-            <Button disabled={rotateMutation.isPending} onClick={() => {
-              if (rotateConfirm) {
-                rotateMutation.mutate({ id: rotateConfirm.id, username: rotateConfirm.username });
-              }
-            }}>
-              {rotateMutation.isPending ? "Generating..." : "Generate New Token"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       <Dialog open={!!reactivateConfirm} onOpenChange={(open) => !open && setReactivateConfirm(null)}>
         <DialogContent>
           <DialogHeader>
@@ -409,7 +388,7 @@ export function Users() {
         </DialogContent>
       </Dialog>
 
-      {/* Reset Password Dialog for human accounts */}
+      {/* Reset Password Dialog */}
       <Dialog
         open={!!resetPasswordTarget}
         onOpenChange={(open) => {
@@ -432,28 +411,62 @@ export function Users() {
           </DialogHeader>
           
           <Form {...resetForm}>
-            <form onSubmit={resetForm.handleSubmit(onResetPasswordSubmit)} className="space-y-4 py-2">
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              if (passwordMethod === "manual") {
+                resetForm.handleSubmit(onResetPasswordSubmit)(e);
+              } else {
+                if (resetPasswordTarget) {
+                  rotateMutation.mutate({ id: resetPasswordTarget.id, username: resetPasswordTarget.username });
+                }
+              }
+            }} className="space-y-4 py-2">
               {resetPasswordError && (
                 <div className="text-sm text-destructive bg-destructive/10 rounded-md p-3">{resetPasswordError}</div>
               )}
+
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Password Method</Label>
+                <RadioGroup 
+                  value={passwordMethod} 
+                  onValueChange={(val: any) => setPasswordMethod(val)}
+                  className="flex flex-col space-y-2"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="manual" id="manual" />
+                    <Label htmlFor="manual" className="font-normal cursor-pointer">Input new password</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="generate" id="generate" />
+                    <Label htmlFor="generate" className="font-normal cursor-pointer">Generate random password</Label>
+                  </div>
+                </RadioGroup>
+              </div>
               
-              <FormField
-                control={resetForm.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>New Password</FormLabel>
-                    <FormControl>
-                      <Input 
-                        type="password" 
-                        placeholder="Minimum 6 characters" 
-                        {...field} 
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {passwordMethod === "manual" ? (
+                <FormField
+                  control={resetForm.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>New Password</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="password" 
+                          placeholder="Minimum 6 characters" 
+                          {...field} 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ) : (
+                <div className="bg-muted p-3 rounded-md border text-sm text-muted-foreground flex items-center gap-2">
+                  <Key className="h-4 w-4 shrink-0" />
+                  A secure 20-character password will be generated and shown once after confirmation.
+                </div>
+              )}
               
               <DialogFooter className="pt-2">
                 <Button
@@ -467,8 +480,8 @@ export function Users() {
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={resetPasswordMutation.isPending}>
-                  {resetPasswordMutation.isPending ? "Saving..." : "Save Password"}
+                <Button type="submit" disabled={resetPasswordMutation.isPending || rotateMutation.isPending}>
+                  {(resetPasswordMutation.isPending || rotateMutation.isPending) ? "Processing..." : (passwordMethod === "manual" ? "Save Password" : "Generate Password")}
                 </Button>
               </DialogFooter>
             </form>
@@ -578,24 +591,16 @@ export function Users() {
                         {user.last_login_at ? formatDateTimeWib(user.last_login_at, { seconds: false }) : "Never"}
                       </TableCell>
                       <TableCell className="text-right space-x-2">
-                        {(user.role === "service" || user.role === "collector") && user.is_active && (
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            title="Rotate Password/Token"
-                            onClick={() => setRotateConfirm({ id: user.id, username: user.username })}
-                            disabled={rotateMutation.isPending}
-                          >
-                            <Key className="h-4 w-4" />
-                          </Button>
-                        )}
-                        {(user.role === "admin" || user.role === "operator") && user.is_active && (
+                        {user.is_active && (
                           <Button
                             variant="outline"
                             size="sm"
                             title="Reset Password"
-                            onClick={() => setResetPasswordTarget({ id: user.id, username: user.username, role: user.role })}
-                            disabled={resetPasswordMutation.isPending}
+                            onClick={() => {
+                              setResetPasswordTarget({ id: user.id, username: user.username, role: user.role });
+                              setPasswordMethod((user.role === "service" || user.role === "collector") ? "generate" : "manual");
+                            }}
+                            disabled={resetPasswordMutation.isPending || rotateMutation.isPending}
                           >
                             <LockKeyhole className="h-4 w-4" />
                           </Button>
