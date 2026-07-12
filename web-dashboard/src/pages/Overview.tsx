@@ -1,23 +1,32 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
-import { Server, Database, AlertCircle, CheckCircle2, XCircle } from "lucide-react";
+import { Server, Database, AlertCircle, CheckCircle2, XCircle, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatDateTimeWib } from "@/lib/datetime";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
 export function Overview() {
   const navigate = useNavigate();
-  const { data: summary, isLoading: loadingSummary } = useQuery({
+  const queryClient = useQueryClient();
+  const [autoRefresh, setAutoRefresh] = useState("0");
+  const refetchInterval = autoRefresh !== "0" ? parseInt(autoRefresh) * 1000 : false;
+
+  const summaryQuery = useQuery({
     queryKey: ["monitor-summary"],
     queryFn: async () => {
       const res = await api.get("/monitor/summary");
       return res.data;
     },
+    refetchInterval,
   });
+  const { data: summary, isLoading: loadingSummary } = summaryQuery;
 
-  const { data: logsData, isLoading: loadingLogs } = useQuery({
+  const logsQuery = useQuery({
     queryKey: ["logs", "failed-recent"],
     queryFn: async () => {
       const res = await api.get("/logs", {
@@ -25,9 +34,11 @@ export function Overview() {
       });
       return res.data;
     },
+    refetchInterval,
   });
+  const { data: logsData, isLoading: loadingLogs } = logsQuery;
 
-  const { data: activityData, isLoading: loadingActivity } = useQuery({
+  const activityQuery = useQuery({
     queryKey: ["monitor-activity"],
     queryFn: async () => {
       const res = await api.get("/monitor/activity-trend");
@@ -47,15 +58,51 @@ export function Overview() {
       }
       return res.data;
     },
+    refetchInterval,
   });
+  const { data: activityData, isLoading: loadingActivity } = activityQuery;
+
+  const isRefetching =
+    summaryQuery.isFetching || logsQuery.isFetching || activityQuery.isFetching;
+
+  const handleManualRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: ["monitor-summary"] });
+    queryClient.invalidateQueries({ queryKey: ["logs", "failed-recent"] });
+    queryClient.invalidateQueries({ queryKey: ["monitor-activity"] });
+  };
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Dashboard Overview</h2>
-        <p className="text-muted-foreground mt-2">
-          Monitor your NAS backup fleet and Ceph storage cluster.
-        </p>
+      <div className="flex justify-between items-end">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Dashboard Overview</h2>
+          <p className="text-muted-foreground mt-2">
+            Monitor your NAS backup fleet and Ceph storage cluster.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Select value={autoRefresh} onValueChange={setAutoRefresh}>
+            <SelectTrigger className="w-36">
+              <SelectValue placeholder="Auto Refresh" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="0">Auto Refresh: Off</SelectItem>
+              <SelectItem value="10">Every 10s</SelectItem>
+              <SelectItem value="30">Every 30s</SelectItem>
+              <SelectItem value="60">Every 1m</SelectItem>
+              <SelectItem value="300">Every 5m</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleManualRefresh}
+            disabled={isRefetching}
+            title="Refresh Now"
+          >
+            <RefreshCw className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`} />
+          </Button>
+        </div>
       </div>
 
       {/* Summary Cards */}

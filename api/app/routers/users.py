@@ -1,10 +1,13 @@
 """User management router. All endpoints are admin-only (RBAC)."""
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import require_admin
+from app.models.backup_log import BackupLog
+from app.models.metric import Metric
+from app.models.report import Report
 from app.models.user import ROLE_ADMIN, ROLE_COLLECTOR, ROLE_SERVICE, User
 from app.schemas.user import (
     PasswordUpdate,
@@ -37,6 +40,27 @@ def _ensure_admin_access_can_be_removed(db: Session, user: User) -> None:
         )
 
 
+def _user_has_related_data(db: Session, user_id: int) -> dict:
+    """Check if a user has related data in logs, metrics, or reports."""
+    log_count = db.scalar(
+        select(func.count()).select_from(BackupLog).where(
+            (BackupLog.reported_by == user_id) | (BackupLog.acknowledged_by == user_id)
+        )
+    ) or 0
+    metric_count = db.scalar(
+        select(func.count()).select_from(Metric).where(Metric.collected_by == user_id)
+    ) or 0
+    report_count = db.scalar(
+        select(func.count()).select_from(Report).where(Report.generated_by == user_id)
+    ) or 0
+    return {
+        "has_data": (log_count + metric_count + report_count) > 0,
+        "log_count": log_count,
+        "metric_count": metric_count,
+        "report_count": report_count,
+    }
+
+
 @router.get(
     "",
     response_model=list[UserOut],
@@ -45,9 +69,13 @@ def _ensure_admin_access_can_be_removed(db: Session, user: User) -> None:
 def list_users(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
+    include_inactive: bool = Query(False, description="Include inactive/disabled users"),
 ) -> list[User]:
     """List all users. Role: admin."""
-    return db.scalars(select(User).order_by(User.id)).all()
+    q = select(User).order_by(User.id)
+    if not include_inactive:
+        q = q.where(User.is_active.is_(True))
+    return db.scalars(q).all()
 
 
 @router.post(
@@ -154,23 +182,63 @@ def update_user(
 @router.delete(
     "/{user_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Deactivate a user",
+    summary="Delete a user (smart: hard if no data, soft otherwise)",
 )
 def delete_user(
     user_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
+    force: bool = Query(
+        False,
+        description="If true, hard-delete even when user has related data (sets FK to NULL).",
+    ),
 ) -> None:
-    """Soft delete: set is_active=false. Role: admin."""
+    """Smart delete: hard delete if no related data, soft delete otherwise.
+
+    With force=true, an admin can hard-delete a user that has related data;
+    FK columns (reported_by, acknowledged_by, collected_by, generated_by) are
+    set to NULL on the related rows before the user row is removed.
+    Role: admin.
+    """
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
     if user.id == current_user.id:
-        raise HTTPException(status_code=400, detail="You cannot disable your own account")
+        raise HTTPException(status_code=400, detail="You cannot delete your own account")
     _ensure_admin_access_can_be_removed(db, user)
-    user.is_active = False
-    user.token_version += 1  # invalidate any existing tokens
-    db.commit()
+
+    relation = _user_has_related_data(db, user_id)
+
+    if not relation["has_data"] or force:
+        if relation["has_data"]:
+            # Nullify FK references before hard delete
+            db.execute(
+                BackupLog.__table__.update()
+                .where(BackupLog.reported_by == user_id)
+                .values(reported_by=None)
+            )
+            db.execute(
+                BackupLog.__table__.update()
+                .where(BackupLog.acknowledged_by == user_id)
+                .values(acknowledged_by=None)
+            )
+            db.execute(
+                Metric.__table__.update()
+                .where(Metric.collected_by == user_id)
+                .values(collected_by=None)
+            )
+            db.execute(
+                Report.__table__.update()
+                .where(Report.generated_by == user_id)
+                .values(generated_by=None)
+            )
+        db.delete(user)
+        db.commit()
+    else:
+        # Soft delete: deactivate and invalidate tokens
+        user.is_active = False
+        user.token_version += 1
+        db.commit()
 
 
 @router.patch(

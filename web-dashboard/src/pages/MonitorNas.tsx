@@ -5,6 +5,8 @@ import { api } from "@/lib/api";
 import { formatDateTimeWib, formatTimeWib } from "@/lib/datetime";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { formatBytes } from "@/lib/utils";
 import {
   LineChart,
   Line,
@@ -98,6 +100,16 @@ export function MonitorNas() {
 
 function NasDetailView({ nasId }: { nasId: string }) {
   const [metric, setMetric] = useState("cpu_usage");
+  const [hours, setHours] = useState(24);
+
+  const TIMEFRAME_OPTIONS = [
+    { label: "1h", value: 1 },
+    { label: "6h", value: 6 },
+    { label: "12h", value: 12 },
+    { label: "24h", value: 24 },
+    { label: "7d", value: 168 },
+    { label: "30d", value: 720 },
+  ];
 
   const { data: snapshot, isLoading: loadingSnap } = useQuery({
     queryKey: ["nas", nasId, "snapshot"],
@@ -108,9 +120,9 @@ function NasDetailView({ nasId }: { nasId: string }) {
   });
 
   const { data: history, isLoading: loadingHist } = useQuery({
-    queryKey: ["nas", nasId, "history", metric],
+    queryKey: ["nas", nasId, "history", metric, hours],
     queryFn: async () => {
-      const res = await api.get(`/monitor/nas/${nasId}/history`, { params: { metric, limit: 30 } });
+      const res = await api.get(`/monitor/nas/${nasId}/history`, { params: { metric, hours } });
       return res.data;
     },
   });
@@ -158,22 +170,46 @@ function NasDetailView({ nasId }: { nasId: string }) {
         </Card>
         
         <Card className={`cursor-pointer transition-colors ${metric === 'disk_used_pct' ? 'border-primary shadow-sm' : 'hover:border-primary/50'}`} onClick={() => setMetric("disk_used_pct")}>
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Disk Usage</p>
-              <h3 className="text-2xl font-bold">{loadingSnap ? "..." : getMetricValue("disk_used_pct")}</h3>
+          <CardContent className="p-4 flex flex-col justify-between h-full min-h-[100px]">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Disk Usage</p>
+                <h3 className="text-2xl font-bold">{loadingSnap ? "..." : getMetricValue("disk_used_pct")}</h3>
+              </div>
+              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <HardDrive className="h-5 w-5 text-primary" />
+              </div>
             </div>
-            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-              <HardDrive className="h-5 w-5 text-primary" />
-            </div>
+            {snapshot?.metrics?.storage_used_bytes && snapshot?.metrics?.storage_total_bytes && (
+              <p className="text-xs text-muted-foreground mt-2">
+                {formatBytes(snapshot.metrics.storage_used_bytes.value)} / {formatBytes(snapshot.metrics.storage_total_bytes.value)}
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="capitalize">{metric.replace(/_/g, " ")} History</CardTitle>
-          <CardDescription>Last 30 data points</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="capitalize">{metric.replace(/_/g, " ")} History</CardTitle>
+              <CardDescription>Last {hours >= 24 ? `${hours / 24}d` : `${hours}h`} of data</CardDescription>
+            </div>
+            <div className="flex gap-1">
+              {TIMEFRAME_OPTIONS.map((opt) => (
+                <Button
+                  key={opt.value}
+                  variant={hours === opt.value ? "default" : "outline"}
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => setHours(opt.value)}
+                >
+                  {opt.label}
+                </Button>
+              ))}
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {loadingHist ? (

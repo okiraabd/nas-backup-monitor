@@ -8,11 +8,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.dependencies import require_operator_or_admin, require_service
+from app.dependencies import require_operator_or_admin, require_service, require_admin
 from app.models.backup_log import STATUS_FAILED, BackupLog
 from app.models.user import User
 from app.schemas.log import (
     AcknowledgeRequest,
+    BulkDeleteRequest,
+    BulkDeleteResponse,
     LogDetail,
     LogIngest,
     LogIngestResponse,
@@ -142,7 +144,7 @@ def list_logs(
     if status_filter:
         conditions.append(BackupLog.status == status_filter.upper())
     if job_name:
-        conditions.append(BackupLog.job_name == job_name)
+        conditions.append(BackupLog.job_name.ilike(f"%{job_name}%"))
     if date_from:
         conditions.append(BackupLog.created_at >= date_from)
     if date_to:
@@ -215,3 +217,56 @@ def acknowledge_log(
     db.commit()
     db.refresh(log)
     return LogDetail.model_validate(log)
+
+
+@router.delete(
+    "/bulk",
+    response_model=BulkDeleteResponse,
+    summary="Bulk delete backup logs (by period or selected IDs)",
+)
+def bulk_delete_logs(
+    payload: BulkDeleteRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+) -> BulkDeleteResponse:
+    """Delete multiple backup logs at once. Admin only.
+
+    Two modes (can be combined):
+    - **By period**: provide ``date_from`` and/or ``date_to`` to delete all logs
+      within that UTC date range.
+    - **By IDs**: provide a list of ``log_ids`` to delete specific logs.
+
+    At least one filter must be specified.
+    """
+    if not payload.log_ids and payload.date_from is None and payload.date_to is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Provide at least one filter: log_ids, date_from, or date_to.",
+        )
+
+    conditions = []
+
+    if payload.log_ids:
+        conditions.append(BackupLog.id.in_(payload.log_ids))
+
+    date_conditions = []
+    if payload.date_from:
+        date_conditions.append(BackupLog.created_at >= payload.date_from)
+    if payload.date_to:
+        date_conditions.append(BackupLog.created_at <= payload.date_to)
+
+    if date_conditions:
+        from sqlalchemy import and_
+        if payload.log_ids:
+            # Combine: (id IN ...) OR (date range)
+            from sqlalchemy import or_
+            conditions = [or_(BackupLog.id.in_(payload.log_ids), and_(*date_conditions))]
+        else:
+            conditions = date_conditions
+
+    rows = db.scalars(select(BackupLog).where(*conditions)).all()
+    count = len(rows)
+    for row in rows:
+        db.delete(row)
+    db.commit()
+    return BulkDeleteResponse(deleted_count=count)

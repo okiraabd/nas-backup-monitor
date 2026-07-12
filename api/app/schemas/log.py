@@ -129,3 +129,23 @@ class AcknowledgeRequest(BaseModel):
     """Operator note used when reviewing a failed backup."""
 
     remark: str = Field(..., min_length=1, max_length=2000, description="Review note explaining the failure handling.")
+
+
+class BulkDeleteRequest(BaseModel):
+    """Request body for DELETE /logs/bulk."""
+
+    log_ids: list[int] | None = Field(
+        None, description="Specific log IDs to delete. Optional."
+    )
+    date_from: datetime | None = Field(
+        None, description="Delete logs created on or after this datetime (UTC). Optional."
+    )
+    date_to: datetime | None = Field(
+        None, description="Delete logs created on or before this datetime (UTC). Optional."
+    )
+
+
+class BulkDeleteResponse(BaseModel):
+    """Result of a bulk delete operation."""
+
+    deleted_count: int = Field(..., description="Number of log rows permanently deleted.")

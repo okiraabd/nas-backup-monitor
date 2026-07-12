@@ -48,6 +48,7 @@ def generate(
         nas_id=payload.nas_id,
         custom_name=payload.custom_name,
         generated_by=current_user,
+        sla_target=payload.sla_target,
     )
 
 

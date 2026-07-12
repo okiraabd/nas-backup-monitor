@@ -22,10 +22,15 @@ _STRICT_NUMBER = re.compile(r"^\s*(-?\d+(?:\.\d+)?)\s*(?:[A-Za-z%]+)?\s*$")
 
 def get_mock_nas_metrics(nas_id: str) -> list[dict]:
     """Generate fake NAS metrics for demo/test mode."""
+    total_bytes = 4_000_000_000_000  # 4TB mock
+    used_pct = round(random.uniform(40.0, 80.0), 1)
+    used_bytes = int(total_bytes * (used_pct / 100))
     return [
         {"name": "cpu_usage", "value": round(random.uniform(5.0, 85.0), 1), "unit": "%"},
         {"name": "ram_used_pct", "value": round(random.uniform(20.0, 95.0), 1), "unit": "%"},
-        {"name": "disk_used_pct", "value": round(random.uniform(40.0, 80.0), 1), "unit": "%"},
+        {"name": "disk_used_pct", "value": used_pct, "unit": "%"},
+        {"name": "storage_total_bytes", "value": total_bytes, "unit": "bytes"},
+        {"name": "storage_used_bytes", "value": used_bytes, "unit": "bytes"},
         {"name": "temperature", "value": random.randint(35, 55), "unit": "C"},
         {"name": "system_uptime", "value": random.randint(100000, 5000000), "unit": "seconds"},
         {"name": "snmp_reachable", "value": 1, "unit": "bool"},
@@ -38,6 +43,8 @@ def _unreachable_metrics() -> list[dict]:
         {"name": "cpu_usage", "value": 0, "unit": "%"},
         {"name": "ram_used_pct", "value": 0, "unit": "%"},
         {"name": "disk_used_pct", "value": 0, "unit": "%"},
+        {"name": "storage_total_bytes", "value": 0, "unit": "bytes"},
+        {"name": "storage_used_bytes", "value": 0, "unit": "bytes"},
         {"name": "temperature", "value": 0, "unit": "C"},
         {"name": "system_uptime", "value": 0, "unit": "seconds"},
         {"name": "snmp_reachable", "value": 0, "unit": "bool"},
@@ -189,9 +196,10 @@ def _looks_like_real_storage(descr: str) -> bool:
     return any(token in lowered for token in included)
 
 
-def _disk_used_from_hr_storage(metrics: MetricSeries) -> float | None:
+def _disk_used_from_hr_storage(metrics: MetricSeries) -> tuple[float, float, float] | None:
     """Calculate disk usage from HOST-RESOURCES-MIB hrStorage* rows."""
     best_total = 0.0
+    best_used_bytes = 0.0
     best_used_pct: float | None = None
 
     for labels, raw_size in metrics.get("hrStorageSize", []):
@@ -211,17 +219,20 @@ def _disk_used_from_hr_storage(metrics: MetricSeries) -> float | None:
             continue
 
         total_bytes = size * (alloc_units or 1)
+        used_bytes = used * (alloc_units or 1)
         used_pct = (used / size) * 100
         if total_bytes > best_total:
             best_total = total_bytes
+            best_used_bytes = used_bytes
             best_used_pct = used_pct
 
-    return _clamp_pct(best_used_pct) if best_used_pct is not None else None
+    return (_clamp_pct(best_used_pct), best_total, best_used_bytes) if best_used_pct is not None else None
 
 
-def _disk_used_from_synology_raid(metrics: MetricSeries) -> float | None:
+def _disk_used_from_synology_raid(metrics: MetricSeries) -> tuple[float, float, float] | None:
     """Calculate disk usage from Synology RAID/volume total and free sizes."""
     best_total = 0.0
+    best_used_bytes = 0.0
     best_used_pct: float | None = None
     best_is_volume = False
 
@@ -233,22 +244,26 @@ def _disk_used_from_synology_raid(metrics: MetricSeries) -> float | None:
 
         raid_name = labels.get("raidName", "")
         is_volume = "volume" in raid_name.lower()
-        used_pct = ((total - free) / total) * 100
+        used = total - free
+        used_pct = (used / total) * 100
 
         if is_volume and not best_is_volume:
             best_total = total
+            best_used_bytes = used
             best_used_pct = used_pct
             best_is_volume = True
         elif is_volume == best_is_volume and total > best_total:
             best_total = total
+            best_used_bytes = used
             best_used_pct = used_pct
 
-    return _clamp_pct(best_used_pct) if best_used_pct is not None else None
+    return (_clamp_pct(best_used_pct), best_total, best_used_bytes) if best_used_pct is not None else None
 
 
-def _disk_used_from_wd_volume(metrics: MetricSeries) -> float | None:
+def _disk_used_from_wd_volume(metrics: MetricSeries) -> tuple[float, float, float] | None:
     """Calculate disk usage from WD PR4100 volume size/free-space metrics."""
     best_total = 0.0
+    best_used_bytes = 0.0
     best_used_pct: float | None = None
 
     for labels, raw_size in metrics.get("mycloudpr4100VolumeSize", []):
@@ -262,12 +277,14 @@ def _disk_used_from_wd_volume(metrics: MetricSeries) -> float | None:
         if size <= 0 or free is None:
             continue
 
-        used_pct = ((size - free) / size) * 100
+        used = size - free
+        used_pct = (used / size) * 100
         if size > best_total:
             best_total = size
+            best_used_bytes = used
             best_used_pct = used_pct
 
-    return _clamp_pct(best_used_pct) if best_used_pct is not None else None
+    return (_clamp_pct(best_used_pct), best_total * 1024 * 1024, best_used_bytes * 1024 * 1024) if best_used_pct is not None else None
 
 
 def _cpu_usage(metrics: MetricSeries) -> float:
@@ -296,8 +313,8 @@ def _ram_used_pct(metrics: MetricSeries) -> float:
     return _clamp_pct(used_pct)
 
 
-def _disk_used_pct(metrics: MetricSeries, profile: str) -> float:
-    """Calculate disk usage using the best available MIB for the NAS profile."""
+def _disk_usage(metrics: MetricSeries, profile: str) -> tuple[float, float, float]:
+    """Calculate disk usage returning (used_pct, total_bytes, used_bytes)."""
     hr_storage = _disk_used_from_hr_storage(metrics)
     if hr_storage is not None:
         return hr_storage
@@ -312,7 +329,7 @@ def _disk_used_pct(metrics: MetricSeries, profile: str) -> float:
         if wd_volume is not None:
             return wd_volume
 
-    return 0.0
+    return (0.0, 0.0, 0.0)
 
 
 def _temperature(metrics: MetricSeries, names: tuple[str, ...]) -> float:
@@ -342,10 +359,14 @@ def _collect_normalized(metrics: MetricSeries, profile: str) -> list[dict]:
         "wd": ("mycloudpr4100Temperature",),
     }.get(profile, ("temperature", "mycloudpr4100Temperature"))
 
+    used_pct, total_bytes, used_bytes = _disk_usage(metrics, profile)
+
     return [
         {"name": "cpu_usage", "value": _cpu_usage(metrics), "unit": "%"},
         {"name": "ram_used_pct", "value": _ram_used_pct(metrics), "unit": "%"},
-        {"name": "disk_used_pct", "value": _disk_used_pct(metrics, profile), "unit": "%"},
+        {"name": "disk_used_pct", "value": used_pct, "unit": "%"},
+        {"name": "storage_total_bytes", "value": total_bytes, "unit": "bytes"},
+        {"name": "storage_used_bytes", "value": used_bytes, "unit": "bytes"},
         {"name": "temperature", "value": _temperature(metrics, temp_names), "unit": "C"},
         {"name": "system_uptime", "value": _system_uptime(metrics), "unit": "seconds"},
         {"name": "snmp_reachable", "value": 1, "unit": "bool"},

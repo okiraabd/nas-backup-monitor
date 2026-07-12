@@ -11,6 +11,7 @@ class ReportGenerate(BaseModel):
     date_to: date = Field(..., description="End date of the report period, interpreted in APP_TIMEZONE.")
     nas_id: str | None = Field(None, description="Optional NAS filter. Omit to include all NAS sources.")
     custom_name: str | None = Field(None, description="Optional filename prefix; unsafe characters are sanitized.")
+    sla_target: float = Field(99.5, ge=0, le=100, description="SLA target percentage (0–100). Default: 99.5%.")
 
     @model_validator(mode="after")
     def check_range(self) -> "ReportGenerate":

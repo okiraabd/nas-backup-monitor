@@ -114,10 +114,21 @@ def latest_snapshot(db: Session, source_type: str, source_id: str) -> dict | Non
 
 
 def metric_history(
-    db: Session, source_type: str, source_id: str, metric_name: str, limit: int = 50
+    db: Session,
+    source_type: str,
+    source_id: str,
+    metric_name: str,
+    limit: int = 50,
+    *,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
 ) -> list[dict]:
-    """Return time-ordered history points for one metric of one source."""
-    rows = db.scalars(
+    """Return time-ordered history points for one metric of one source.
+
+    When ``date_from`` or ``date_to`` are provided, ``limit`` is ignored and
+    all matching rows in the time range are returned.
+    """
+    q = (
         select(Metric)
         .where(
             Metric.source_type == source_type,
@@ -125,8 +136,15 @@ def metric_history(
             Metric.metric_name == metric_name,
         )
         .order_by(Metric.collected_at.desc())
-        .limit(limit)
-    ).all()
+    )
+    if date_from is not None:
+        q = q.where(Metric.collected_at >= date_from)
+    if date_to is not None:
+        q = q.where(Metric.collected_at <= date_to)
+    if date_from is None and date_to is None:
+        q = q.limit(limit)
+
+    rows = db.scalars(q).all()
     points = [
         {
             "collected_at": m.collected_at,

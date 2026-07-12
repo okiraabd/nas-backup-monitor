@@ -4,6 +4,8 @@ import { Database, CheckCircle2, XCircle, AlertCircle, HardDrive, Activity } fro
 import { api } from "@/lib/api";
 import { formatDateTimeWib, formatTimeWib } from "@/lib/datetime";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { formatBytes } from "@/lib/utils";
 import {
   AreaChart,
   Area,
@@ -16,6 +18,16 @@ import {
 
 export function MonitorCeph() {
   const [metric] = useState("storage_used_pct");
+  const [hours, setHours] = useState(24);
+
+  const TIMEFRAME_OPTIONS = [
+    { label: "1h", value: 1 },
+    { label: "6h", value: 6 },
+    { label: "12h", value: 12 },
+    { label: "24h", value: 24 },
+    { label: "7d", value: 168 },
+    { label: "30d", value: 720 },
+  ];
 
   const { data: snapshot, isLoading: loadingSnap } = useQuery({
     queryKey: ["ceph", "snapshot"],
@@ -31,10 +43,10 @@ export function MonitorCeph() {
   });
 
   const { data: history, isLoading: loadingHist } = useQuery({
-    queryKey: ["ceph", "history", metric],
+    queryKey: ["ceph", "history", metric, hours],
     queryFn: async () => {
       try {
-        const res = await api.get("/monitor/ceph/history", { params: { metric, limit: 30 } });
+        const res = await api.get("/monitor/ceph/history", { params: { metric, hours } });
         return res.data;
       } catch (err: any) {
         if (err.response?.status === 404) return { points: [] };
@@ -53,6 +65,8 @@ export function MonitorCeph() {
   const osdUp = getMetric("osd_up")?.value;
   const osdIn = getMetric("osd_in")?.value ?? getMetric("osd_total")?.value;
   const storageUsed = getMetric("storage_used_pct")?.value;
+  const storageUsedBytes = getMetric("storage_used_bytes")?.value;
+  const storageTotalBytes = getMetric("storage_total_bytes")?.value;
 
   const chartData = history?.points?.map((p: any) => ({
     time: formatTimeWib(p.collected_at),
@@ -137,7 +151,7 @@ export function MonitorCeph() {
               </CardContent>
             </Card>
 
-            <Card className="cursor-pointer border-primary shadow-sm">
+            <Card className="cursor-pointer border-primary shadow-sm flex flex-col justify-between">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Storage Used</CardTitle>
                 <HardDrive className="h-4 w-4 text-muted-foreground" />
@@ -147,8 +161,15 @@ export function MonitorCeph() {
                   <div className="h-8 animate-pulse bg-muted rounded w-1/2" />
                 ) : (
                   <>
-                    <div className="text-2xl font-bold">
-                      {storageUsed !== undefined ? `${storageUsed}%` : "-"}
+                    <div className="flex flex-col">
+                      <div className="text-2xl font-bold">
+                        {storageUsed !== undefined ? `${storageUsed}%` : "-"}
+                      </div>
+                      {storageUsedBytes !== undefined && storageTotalBytes !== undefined && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {formatBytes(storageUsedBytes)} / {formatBytes(storageTotalBytes)}
+                        </p>
+                      )}
                     </div>
                     <div className="w-full bg-muted rounded-full h-2 mt-3 overflow-hidden">
                       <div 
@@ -164,8 +185,25 @@ export function MonitorCeph() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Storage Utilization History</CardTitle>
-              <CardDescription>Capacity trend over time</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Storage Utilization History</CardTitle>
+                  <CardDescription>Last {hours >= 24 ? `${hours / 24}d` : `${hours}h`} of data</CardDescription>
+                </div>
+                <div className="flex gap-1">
+                  {TIMEFRAME_OPTIONS.map((opt) => (
+                    <Button
+                      key={opt.value}
+                      variant={hours === opt.value ? "default" : "outline"}
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setHours(opt.value)}
+                    >
+                      {opt.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               {loadingHist ? (

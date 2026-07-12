@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { api } from "@/lib/api";
 import { formatDateTimeWib } from "@/lib/datetime";
-import { Users as UsersIcon, ShieldAlert, Key, PlusCircle, Trash2 } from "lucide-react";
+import { Users as UsersIcon, ShieldAlert, Key, KeyRound, PlusCircle, Trash2, RotateCcw, Eye, EyeOff } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -48,11 +48,15 @@ export function Users() {
   const [roleFilter, setRoleFilter] = useState("ALL");
   const [deleteConfirm, setDeleteConfirm] = useState<{id: number, username: string} | null>(null);
   const [rotateConfirm, setRotateConfirm] = useState<{id: number, username: string} | null>(null);
+  const [resetPasswordTarget, setResetPasswordTarget] = useState<{id: number, username: string, role: string} | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [resetPasswordError, setResetPasswordError] = useState("");
+  const [showInactive, setShowInactive] = useState(false);
 
   const { data: users, isLoading } = useQuery({
-    queryKey: ["users"],
+    queryKey: ["users", showInactive],
     queryFn: async () => {
-      const res = await api.get("/users");
+      const res = await api.get("/users", { params: { include_inactive: showInactive } });
       return res.data;
     },
     enabled: currentUser?.role === "admin",
@@ -112,6 +116,16 @@ export function Users() {
     },
   });
 
+  const reactivateMutation = useMutation({
+    mutationFn: async (id: number) => {
+      // Reactivate by sending a PATCH to update is_active
+      await api.patch(`/users/${id}`, { is_active: true });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+    },
+  });
+
   const rotateMutation = useMutation({
     mutationFn: async ({ id, username }: { id: number, username: string }) => {
       const res = await api.post(`/users/${id}/rotate-token`);
@@ -121,6 +135,21 @@ export function Users() {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       setRotateConfirm(null);
       setTokenResult({ username: data.username, token: data.password });
+    },
+  });
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: async ({ id, password }: { id: number, password: string }) => {
+      await api.patch(`/users/${id}/password`, { new_password: password });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      setResetPasswordTarget(null);
+      setNewPassword("");
+      setResetPasswordError("");
+    },
+    onError: (err: any) => {
+      setResetPasswordError(err.response?.data?.detail || "Gagal mereset password.");
     },
   });
 
@@ -319,13 +348,79 @@ export function Users() {
         </DialogContent>
       </Dialog>
 
+      {/* Reset Password Dialog for human accounts */}
+      <Dialog
+        open={!!resetPasswordTarget}
+        onOpenChange={(open) => {
+          if (!open) {
+            setResetPasswordTarget(null);
+            setNewPassword("");
+            setResetPasswordError("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+            <DialogDescription>
+              Set a new password for <strong>{resetPasswordTarget?.username}</strong>{" "}
+              (<span className="capitalize">{resetPasswordTarget?.role}</span>).
+              <br /><br />
+              <span className="text-destructive font-medium">Warning:</span> Semua sesi aktif user ini akan langsung dibatalkan dan harus login ulang.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 py-2">
+            {resetPasswordError && (
+              <div className="text-sm text-destructive bg-destructive/10 rounded-md p-3">{resetPasswordError}</div>
+            )}
+            <div className="grid gap-1.5">
+              <label className="text-sm font-medium" htmlFor="new-password-input">Password Baru</label>
+              <Input
+                id="new-password-input"
+                type="password"
+                placeholder="Minimal 6 karakter"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && newPassword.length >= 6 && resetPasswordTarget) {
+                    resetPasswordMutation.mutate({ id: resetPasswordTarget.id, password: newPassword });
+                  }
+                }}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setResetPasswordTarget(null);
+                setNewPassword("");
+                setResetPasswordError("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={newPassword.length < 6 || resetPasswordMutation.isPending}
+              onClick={() => {
+                if (resetPasswordTarget) {
+                  resetPasswordMutation.mutate({ id: resetPasswordTarget.id, password: newPassword });
+                }
+              }}
+            >
+              {resetPasswordMutation.isPending ? "Saving..." : "Save Password"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Card>
         <CardHeader className="pb-3 flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             <UsersIcon className="h-5 w-5" />
             Registered Accounts
           </CardTitle>
-          <div className="flex gap-4">
+          <div className="flex gap-4 items-center">
             <div className="w-56">
               <Input
                 placeholder="Search username or name..."
@@ -341,11 +436,21 @@ export function Users() {
                 <SelectContent>
                   <SelectItem value="ALL">All Roles</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="operator">Operator</SelectItem>
                   <SelectItem value="service">Service</SelectItem>
                   <SelectItem value="collector">Collector</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            <Button
+              variant={showInactive ? "secondary" : "outline"}
+              size="sm"
+              onClick={() => setShowInactive((v) => !v)}
+              title={showInactive ? "Hide Inactive Users" : "Show Inactive Users"}
+            >
+              {showInactive ? <EyeOff className="h-4 w-4 mr-1" /> : <Eye className="h-4 w-4 mr-1" />}
+              {showInactive ? "Hide Inactive" : "Show Inactive"}
+            </Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -367,7 +472,6 @@ export function Users() {
                     <TableCell colSpan={6} className="h-24 text-center">Loading...</TableCell>
                   </TableRow>
                 ) : users?.filter((u: any) => 
-                    u.is_active &&
                     (roleFilter === "ALL" || u.role === roleFilter) &&
                     (!searchQuery || 
                      u.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -384,7 +488,6 @@ export function Users() {
                   </TableRow>
                 ) : (
                   users?.filter((u: any) => 
-                    u.is_active &&
                     (roleFilter === "ALL" || u.role === roleFilter) &&
                     (!searchQuery || 
                      u.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -410,7 +513,7 @@ export function Users() {
                         {user.last_login_at ? formatDateTimeWib(user.last_login_at, { seconds: false }) : "Never"}
                       </TableCell>
                       <TableCell className="text-right space-x-2">
-                        {user.role === "service" && user.is_active && (
+                        {(user.role === "service" || user.role === "collector") && user.is_active && (
                           <Button 
                             variant="outline" 
                             size="sm" 
@@ -421,14 +524,38 @@ export function Users() {
                             <Key className="h-4 w-4" />
                           </Button>
                         )}
-                        <Button 
-                          variant="destructive" 
-                          size="sm"
-                          disabled={user.username === "admin" || deleteMutation.isPending || !user.is_active}
-                          onClick={() => setDeleteConfirm({ id: user.id, username: user.username })}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        {(user.role === "admin" || user.role === "operator") && user.is_active && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            title="Reset Password"
+                            onClick={() => setResetPasswordTarget({ id: user.id, username: user.username, role: user.role })}
+                            disabled={resetPasswordMutation.isPending}
+                          >
+                            <KeyRound className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {!user.is_active ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            title="Reactivate User"
+                            onClick={() => reactivateMutation.mutate(user.id)}
+                            disabled={reactivateMutation.isPending}
+                            className="text-emerald-600 border-emerald-600/30 hover:bg-emerald-50"
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            disabled={user.username === "admin" || deleteMutation.isPending}
+                            onClick={() => setDeleteConfirm({ id: user.id, username: user.username })}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))

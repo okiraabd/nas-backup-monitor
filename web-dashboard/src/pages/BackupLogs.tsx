@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { formatDateTimeWib, jakartaDateToUtcRange } from "@/lib/datetime";
 import { Link, useSearchParams } from "react-router-dom";
-import { Eye, CheckCircle2, XCircle, Clock, History, X } from "lucide-react";
+import { Eye, CheckCircle2, XCircle, History, X, RefreshCw, Trash2 } from "lucide-react";
 
 import {
   Table,
@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export function BackupLogs() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -28,8 +29,14 @@ export function BackupLogs() {
   const [nasId, setNasId] = useState("ALL");
   const [jobName, setJobName] = useState("");
   const [dateFilter, setDateFilter] = useState(initialDate);
+  const [autoRefresh, setAutoRefresh] = useState("0");
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDateFrom, setBulkDateFrom] = useState("");
+  const [bulkDateTo, setBulkDateTo] = useState("");
   const pageSize = 10;
   const dateFromUrl = searchParams.get("date") || "";
+  const refetchInterval = autoRefresh !== "0" ? parseInt(autoRefresh) * 1000 : false;
+  const queryClient = useQueryClient();
 
   const { data: nasList } = useQuery({
     queryKey: ["nas-list"],
@@ -51,7 +58,7 @@ export function BackupLogs() {
     setPage(1);
   };
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching } = useQuery({
     queryKey: ["logs", page, status, nasId, jobName, dateFilter],
     queryFn: async () => {
       const params: any = { page, page_size: pageSize };
@@ -70,6 +77,34 @@ export function BackupLogs() {
       const res = await api.get("/logs", { params });
       return res.data;
     },
+    refetchInterval,
+  });
+
+  const handleManualRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: ["logs", page, status, nasId, jobName, dateFilter] });
+  };
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async ({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) => {
+      const payload: any = {};
+      if (dateFrom) {
+        const from = jakartaDateToUtcRange(dateFrom);
+        if (from) payload.date_from = from.date_from;
+      }
+      if (dateTo) {
+        const to = jakartaDateToUtcRange(dateTo);
+        if (to) payload.date_to = to.date_to;
+      }
+      const res = await api.delete("/logs/bulk", { data: payload });
+      return res.data;
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["logs"] });
+      setBulkDeleteOpen(false);
+      setBulkDateFrom("");
+      setBulkDateTo("");
+      alert(`✅ ${result.deleted_count} log records deleted.`);
+    },
   });
 
   const getStatusBadge = (status: string) => {
@@ -78,8 +113,6 @@ export function BackupLogs() {
         return <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20"><CheckCircle2 className="w-3 h-3 mr-1"/> SUCCESS</Badge>;
       case "FAILED":
         return <Badge variant="outline" className="bg-rose-500/10 text-rose-500 border-rose-500/20"><XCircle className="w-3 h-3 mr-1"/> FAILED</Badge>;
-      case "RUNNING":
-        return <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20"><Clock className="w-3 h-3 mr-1"/> RUNNING</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -94,7 +127,88 @@ export function BackupLogs() {
             History of all backup jobs from your NAS devices.
           </p>
         </div>
+        <div className="flex items-center gap-2">
+          <Select value={autoRefresh} onValueChange={setAutoRefresh}>
+            <SelectTrigger className="w-36">
+              <SelectValue placeholder="Auto Refresh" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="0">Auto Refresh: Off</SelectItem>
+              <SelectItem value="10">Every 10s</SelectItem>
+              <SelectItem value="30">Every 30s</SelectItem>
+              <SelectItem value="60">Every 1m</SelectItem>
+              <SelectItem value="300">Every 5m</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleManualRefresh}
+            disabled={isFetching}
+            title="Refresh Now"
+          >
+            <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setBulkDeleteOpen(true)}
+            title="Delete Logs by Period"
+            className="text-destructive border-destructive/30 hover:bg-destructive/10"
+          >
+            <Trash2 className="h-4 w-4 mr-1" />
+            Delete by Period
+          </Button>
+        </div>
       </div>
+
+      {/* Bulk Delete Dialog */}
+      <Dialog open={bulkDeleteOpen} onOpenChange={(open) => {
+        setBulkDeleteOpen(open);
+        if (!open) { setBulkDateFrom(""); setBulkDateTo(""); }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Logs by Period</DialogTitle>
+            <DialogDescription>
+              Permanently delete all backup logs within the selected date range.
+              <br /><br />
+              <span className="text-destructive font-medium">⚠️ Warning:</span> This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="grid gap-1.5">
+              <label className="text-sm font-medium" htmlFor="bulk-date-from">From Date</label>
+              <Input
+                id="bulk-date-from"
+                type="date"
+                value={bulkDateFrom}
+                onChange={(e) => setBulkDateFrom(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <label className="text-sm font-medium" htmlFor="bulk-date-to">To Date</label>
+              <Input
+                id="bulk-date-to"
+                type="date"
+                value={bulkDateTo}
+                onChange={(e) => setBulkDateTo(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkDeleteOpen(false)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              disabled={(!bulkDateFrom && !bulkDateTo) || bulkDeleteMutation.isPending}
+              onClick={() => bulkDeleteMutation.mutate({ dateFrom: bulkDateFrom, dateTo: bulkDateTo })}
+            >
+              {bulkDeleteMutation.isPending ? "Deleting..." : "Delete Logs"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
 
       <Card>
         <CardHeader className="pb-3">
@@ -133,7 +247,6 @@ export function BackupLogs() {
                   <SelectItem value="ALL">All Statuses</SelectItem>
                   <SelectItem value="SUCCESS">Success</SelectItem>
                   <SelectItem value="FAILED">Failed</SelectItem>
-                  <SelectItem value="RUNNING">Running</SelectItem>
                 </SelectContent>
               </Select>
             </div>

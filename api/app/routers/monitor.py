@@ -196,11 +196,16 @@ def get_nas_history(
     nas_id: str,
     metric: str = Query("cpu_usage"),
     limit: int = Query(50, ge=1, le=500),
+    hours: int | None = Query(None, ge=1, le=8760, description="Fetch last N hours of data (overrides limit)."),
+    date_from: datetime | None = Query(None, description="Filter history from this datetime (UTC)."),
+    date_to: datetime | None = Query(None, description="Filter history up to this datetime (UTC)."),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_operator_or_admin),
 ) -> MetricHistory:
     """History of one metric for one NAS. Role: admin/operator."""
-    points = svc.metric_history(db, SOURCE_NAS, nas_id, metric, limit)
+    if hours is not None:
+        date_from = datetime.now(timezone.utc) - timedelta(hours=hours)
+    points = svc.metric_history(db, SOURCE_NAS, nas_id, metric, limit, date_from=date_from, date_to=date_to)
     return MetricHistory(source_id=nas_id, metric_name=metric, points=points)
 
 
@@ -229,12 +234,17 @@ def get_ceph(
 def get_ceph_history(
     metric: str = Query("storage_used_pct"),
     limit: int = Query(50, ge=1, le=500),
+    hours: int | None = Query(None, ge=1, le=8760, description="Fetch last N hours of data (overrides limit)."),
+    date_from: datetime | None = Query(None, description="Filter history from this datetime (UTC)."),
+    date_to: datetime | None = Query(None, description="Filter history up to this datetime (UTC)."),
     source_id: str = Query("ceph-cluster"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_operator_or_admin),
 ) -> MetricHistory:
     """History of one metric for the Ceph cluster. Role: admin/operator."""
-    points = svc.metric_history(db, SOURCE_CEPH, source_id, metric, limit)
+    if hours is not None:
+        date_from = datetime.now(timezone.utc) - timedelta(hours=hours)
+    points = svc.metric_history(db, SOURCE_CEPH, source_id, metric, limit, date_from=date_from, date_to=date_to)
     return MetricHistory(source_id=source_id, metric_name=metric, points=points)
 
 

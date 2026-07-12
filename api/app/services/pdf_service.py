@@ -1,11 +1,17 @@
-"""PDF generation using ReportLab."""
+"""PDF generation using ReportLab — redesigned with SLA focus."""
 from datetime import date, datetime, timezone
+from typing import Any
 
+from reportlab.graphics.charts.barcharts import VerticalBarChart
+from reportlab.graphics.charts.piecharts import Pie
+from reportlab.graphics.shapes import Drawing, String
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.platypus import (
+    HRFlowable,
+    PageBreak,
     Paragraph,
     SimpleDocTemplate,
     Spacer,
@@ -14,6 +20,15 @@ from reportlab.platypus import (
 )
 
 from app.timezone import format_local_datetime
+
+# --- Brand colours ---
+COLOR_PRIMARY = colors.HexColor("#1e40af")   # blue-800
+COLOR_SUCCESS = colors.HexColor("#16a34a")   # green-600
+COLOR_DANGER  = colors.HexColor("#dc2626")   # red-600
+COLOR_WARN    = colors.HexColor("#d97706")   # amber-600
+COLOR_HEADER  = colors.HexColor("#1e293b")   # slate-800
+COLOR_ROW_ALT = colors.HexColor("#f1f5f9")   # slate-100
+COLOR_MUTED   = colors.HexColor("#64748b")   # slate-500
 
 
 def _fmt_bytes(n: int | None) -> str:
@@ -28,6 +43,64 @@ def _fmt_bytes(n: int | None) -> str:
     return f"{n}"
 
 
+def _sla_color(actual: float, target: float) -> Any:
+    if actual >= target:
+        return COLOR_SUCCESS
+    if actual >= target - 1:
+        return COLOR_WARN
+    return COLOR_DANGER
+
+
+def _build_sla_pie(success: int, failed: int) -> Drawing:
+    """Return a small Pie chart Drawing for success/failure ratio."""
+    d = Drawing(160, 120)
+    pie = Pie()
+    pie.x = 30
+    pie.y = 10
+    pie.width = 100
+    pie.height = 100
+    total = success + failed or 1
+    pie.data = [success, failed] if failed > 0 else [success, 0.001]
+    pie.labels = [f"Success\n{success/total*100:.1f}%", f"Failed\n{failed/total*100:.1f}%"]
+    pie.slices[0].fillColor = COLOR_SUCCESS
+    pie.slices[1].fillColor = COLOR_DANGER
+    pie.slices.strokeWidth = 0.5
+    pie.slices.strokeColor = colors.white
+    pie.simpleLabels = False
+    pie.sideLabels = True
+    d.add(pie)
+    return d
+
+
+def _build_daily_bar(days: list[dict]) -> Drawing:
+    """Return a simple VerticalBarChart for daily success/failed trend."""
+    if not days:
+        return Drawing(400, 150)
+    d = Drawing(400, 160)
+    bc = VerticalBarChart()
+    bc.x = 40
+    bc.y = 20
+    bc.height = 120
+    bc.width = 340
+    bc.data = [
+        [row.get("success", 0) for row in days],
+        [row.get("failed",  0) for row in days],
+    ]
+    bc.categoryAxis.categoryNames = [str(row.get("date", ""))[-5:] for row in days]
+    bc.categoryAxis.labels.fontSize = 7
+    bc.categoryAxis.labels.angle = 30
+    bc.categoryAxis.labels.dy = -8
+    bc.bars[0].fillColor = COLOR_SUCCESS
+    bc.bars[1].fillColor = COLOR_DANGER
+    bc.valueAxis.labels.fontSize = 7
+    bc.groupSpacing = 4
+    d.add(bc)
+    # Legend
+    d.add(String(45, 155, "■ Success", fontSize=8, fillColor=COLOR_SUCCESS))
+    d.add(String(115, 155, "■ Failed",  fontSize=8, fillColor=COLOR_DANGER))
+    return d
+
+
 def build_report_pdf(
     file_path: str,
     *,
@@ -37,16 +110,37 @@ def build_report_pdf(
     logs: list,
     monitoring: list,
     generated_by_name: str,
+    sla_target: float = 99.5,
+    activity_days: list[dict] | None = None,
 ) -> None:
-    """Render the backup report PDF to `file_path`.
-
-    `logs` is a list of BackupLog rows; `monitoring` is a list of latest source
-    snapshot dicts (as produced by monitor_service.latest_snapshot).
-    """
+    """Render a comprehensive SLA-focused backup report PDF to `file_path`."""
     styles = getSampleStyleSheet()
-    title_style = styles["Title"]
-    h2 = styles["Heading2"]
+
+    title_style = ParagraphStyle(
+        "ReportTitle",
+        parent=styles["Title"],
+        fontSize=22,
+        textColor=COLOR_HEADER,
+        spaceAfter=4,
+    )
+    h2 = ParagraphStyle(
+        "SectionH2",
+        parent=styles["Heading2"],
+        fontSize=13,
+        textColor=COLOR_PRIMARY,
+        spaceBefore=10,
+        spaceAfter=6,
+    )
+    h3 = ParagraphStyle(
+        "SectionH3",
+        parent=styles["Heading3"],
+        fontSize=10,
+        textColor=COLOR_HEADER,
+        spaceBefore=8,
+        spaceAfter=4,
+    )
     normal = styles["Normal"]
+    small  = ParagraphStyle("small", parent=normal, fontSize=8, textColor=COLOR_MUTED)
 
     doc = SimpleDocTemplate(
         file_path,
@@ -55,148 +149,229 @@ def build_report_pdf(
         bottomMargin=18 * mm,
         leftMargin=16 * mm,
         rightMargin=16 * mm,
-        title="Backup Monitoring Report",
+        title="Backup Monitoring SLA Report",
     )
-    story = []
+    story: list = []
 
-    # --- Header ---
+    # ─── Cover / Header ────────────────────────────────────────────────────
     story.append(Paragraph("Backup Monitoring Report", title_style))
-    story.append(Paragraph("PT Lucky Mom Indonesia", normal))
-    story.append(Spacer(1, 6))
-    meta = [
-        f"<b>Period:</b> {date_from.isoformat()} — {date_to.isoformat()}",
-        f"<b>NAS filter:</b> {nas_filter or 'All'}",
-        f"<b>Generated by:</b> {generated_by_name}",
-        f"<b>Generated at:</b> {format_local_datetime(datetime.now(timezone.utc), '%Y-%m-%d %H:%M:%S')} WIB",
+    story.append(Paragraph("PT Lucky Mom Indonesia", styles["Normal"]))
+    story.append(HRFlowable(width="100%", thickness=1, color=COLOR_PRIMARY, spaceAfter=6))
+
+    meta_data = [
+        ["Period", f"{date_from.isoformat()}  —  {date_to.isoformat()}"],
+        ["NAS Filter", nas_filter or "All NAS Devices"],
+        ["Generated by", generated_by_name],
+        ["Generated at", f"{format_local_datetime(datetime.now(timezone.utc), '%Y-%m-%d %H:%M:%S')} WIB"],
+        ["SLA Target", f"{sla_target:.2f}%"],
     ]
-    for m in meta:
-        story.append(Paragraph(m, normal))
+    meta_table = Table(meta_data, colWidths=[38 * mm, 130 * mm])
+    meta_table.setStyle(TableStyle([
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("TEXTCOLOR", (0, 0), (0, -1), COLOR_MUTED),
+        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+    ]))
+    story.append(meta_table)
     story.append(Spacer(1, 12))
 
-    # --- Summary ---
-    total = len(logs)
+    # ─── Executive Summary / SLA Dashboard ────────────────────────────────
+    story.append(Paragraph("SLA Dashboard", h2))
+
+    total   = len(logs)
     success = sum(1 for l in logs if l.status == "SUCCESS")
-    failed = sum(1 for l in logs if l.status == "FAILED")
-    unack = sum(1 for l in logs if l.status == "FAILED" and not l.acknowledged)
+    failed  = sum(1 for l in logs if l.status == "FAILED")
+    unack   = sum(1 for l in logs if l.status == "FAILED" and not l.acknowledged)
+    actual_sla = (success / total * 100) if total > 0 else 100.0
+    sla_met = actual_sla >= sla_target
 
-    story.append(Paragraph("Backup Summary", h2))
+    sla_color = _sla_color(actual_sla, sla_target)
+
+    # Summary metrics row
     summary_data = [
-        ["Total Backups", "Success", "Failed", "Failed (unacknowledged)"],
-        [str(total), str(success), str(failed), str(unack)],
+        ["Total Backups", "Success", "Failed", "Unacknowledged", "Actual SLA", "SLA Status"],
+        [
+            str(total),
+            str(success),
+            str(failed),
+            str(unack),
+            f"{actual_sla:.2f}%",
+            "✓ MET" if sla_met else "✗ NOT MET",
+        ],
     ]
-    summary_table = Table(summary_data, colWidths=[42 * mm] * 4)
-    summary_table.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1f2937")),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                ("FONTSIZE", (0, 0), (-1, -1), 9),
-                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-                ("TOPPADDING", (0, 0), (-1, -1), 6),
-            ]
-        )
-    )
+    summary_table = Table(summary_data, colWidths=[30 * mm, 25 * mm, 22 * mm, 35 * mm, 28 * mm, 28 * mm])
+    sla_col = 5
+    summary_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), COLOR_HEADER),
+        ("TEXTCOLOR",  (0, 0), (-1, 0), colors.white),
+        ("FONTSIZE",   (0, 0), (-1, -1), 9),
+        ("ALIGN",      (0, 0), (-1, -1), "CENTER"),
+        ("GRID",       (0, 0), (-1, -1), 0.5, colors.grey),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING",    (0, 0), (-1, -1), 6),
+        ("FONTNAME",   (0, 1), (-1, 1), "Helvetica-Bold"),
+        ("TEXTCOLOR",  (sla_col, 1), (sla_col, 1), sla_color),
+        ("FONTSIZE",   (sla_col, 1), (sla_col, 1), 11),
+    ]))
     story.append(summary_table)
-    story.append(Spacer(1, 14))
+    story.append(Spacer(1, 10))
 
-    # --- Backup log list ---
+    # Visualisasi: Pie chart + bar chart side by side
+    if total > 0:
+        pie_drawing = _build_sla_pie(success, failed)
+        bar_drawing = _build_daily_bar(activity_days or [])
+        vis_table = Table([[pie_drawing, bar_drawing]], colWidths=[80 * mm, 100 * mm])
+        vis_table.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("ALIGN",  (0, 0), (-1, -1), "CENTER"),
+        ]))
+        story.append(vis_table)
+        story.append(Spacer(1, 8))
+
+    # ─── Per-NAS SLA Breakdown ────────────────────────────────────────────
+    story.append(Paragraph("Per-NAS SLA Breakdown", h2))
+    nas_stats: dict[str, dict] = {}
+    for l in logs:
+        nas_stats.setdefault(l.nas_id, {"total": 0, "success": 0, "failed": 0})
+        nas_stats[l.nas_id]["total"] += 1
+        if l.status == "SUCCESS":
+            nas_stats[l.nas_id]["success"] += 1
+        else:
+            nas_stats[l.nas_id]["failed"] += 1
+
+    if nas_stats:
+        nas_rows = [["NAS ID", "Total", "Success", "Failed", "SLA %", "Status"]]
+        for nas_id, s in sorted(nas_stats.items()):
+            nas_sla = (s["success"] / s["total"] * 100) if s["total"] > 0 else 100.0
+            nas_met = nas_sla >= sla_target
+            nas_rows.append([
+                nas_id,
+                str(s["total"]),
+                str(s["success"]),
+                str(s["failed"]),
+                f"{nas_sla:.2f}%",
+                "✓ MET" if nas_met else "✗ NOT MET",
+            ])
+        nas_table = Table(nas_rows, colWidths=[40 * mm, 22 * mm, 22 * mm, 22 * mm, 28 * mm, 28 * mm])
+        nas_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), COLOR_PRIMARY),
+            ("TEXTCOLOR",  (0, 0), (-1, 0), colors.white),
+            ("FONTSIZE",   (0, 0), (-1, -1), 8),
+            ("ALIGN",      (1, 0), (-1, -1), "CENTER"),
+            ("GRID",       (0, 0), (-1, -1), 0.4, colors.grey),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, COLOR_ROW_ALT]),
+            ("TOPPADDING",    (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        story.append(nas_table)
+    else:
+        story.append(Paragraph("No backup data available for this period.", normal))
+    story.append(Spacer(1, 10))
+
+    # ─── Backup Log List ──────────────────────────────────────────────────
     story.append(Paragraph("Backup Logs", h2))
     if logs:
         rows = [["ID", "NAS", "Job", "Status", "Size", "Started"]]
         for l in logs:
-            rows.append(
-                [
-                    str(l.id),
-                    l.nas_id,
-                    l.job_name,
-                    l.status,
-                    _fmt_bytes(l.total_size_bytes),
-                    format_local_datetime(l.started_at),
-                ]
-            )
+            rows.append([
+                str(l.id),
+                l.nas_id,
+                l.job_name[:28],
+                l.status,
+                _fmt_bytes(l.total_size_bytes),
+                format_local_datetime(l.started_at),
+            ])
         t = Table(rows, colWidths=[12 * mm, 30 * mm, 34 * mm, 20 * mm, 24 * mm, 34 * mm])
-        t.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#374151")),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                    ("FONTSIZE", (0, 0), (-1, -1), 8),
-                    ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
-                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f3f4f6")]),
-                    ("TOPPADDING", (0, 0), (-1, -1), 4),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                ]
-            )
-        )
+        t.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), COLOR_HEADER),
+            ("TEXTCOLOR",  (0, 0), (-1, 0), colors.white),
+            ("FONTSIZE",   (0, 0), (-1, -1), 8),
+            ("GRID",       (0, 0), (-1, -1), 0.4, colors.grey),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, COLOR_ROW_ALT]),
+            ("TOPPADDING",    (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]))
         story.append(t)
     else:
         story.append(Paragraph("No backup logs in this period.", normal))
     story.append(Spacer(1, 14))
 
-    # --- Failed logs detail ---
+    # ─── Failed Backups Detail ────────────────────────────────────────────
     failed_logs = [l for l in logs if l.status == "FAILED"]
     story.append(Paragraph("Failed Backups", h2))
     if failed_logs:
-        rows = [["ID", "NAS", "Job", "Ack", "Message"]]
+        rows = [["ID", "NAS", "Job", "Ack", "Remark / Message"]]
         for l in failed_logs:
-            rows.append(
-                [
-                    str(l.id),
-                    l.nas_id,
-                    l.job_name,
-                    "Yes" if l.acknowledged else "No",
-                    (l.message or "-")[:60],
-                ]
-            )
+            note = l.remark or l.message or "-"
+            rows.append([
+                str(l.id),
+                l.nas_id,
+                l.job_name[:25],
+                "Yes" if l.acknowledged else "No",
+                note[:55],
+            ])
         t = Table(rows, colWidths=[12 * mm, 28 * mm, 30 * mm, 14 * mm, 74 * mm])
-        t.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#7f1d1d")),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                    ("FONTSIZE", (0, 0), (-1, -1), 8),
-                    ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
-                    ("TOPPADDING", (0, 0), (-1, -1), 4),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                ]
-            )
-        )
+        t.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#7f1d1d")),
+            ("TEXTCOLOR",  (0, 0), (-1, 0), colors.white),
+            ("FONTSIZE",   (0, 0), (-1, -1), 8),
+            ("GRID",       (0, 0), (-1, -1), 0.4, colors.grey),
+            ("TOPPADDING",    (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]))
         story.append(t)
     else:
-        story.append(Paragraph("No failed backups in this period. ", normal))
+        story.append(Paragraph("No failed backups in this period. 🎉", normal))
     story.append(Spacer(1, 14))
 
-    # --- Monitoring snapshot ---
+    # ─── Monitoring Snapshot ──────────────────────────────────────────────
     story.append(Paragraph("Latest Monitoring Snapshot", h2))
     if monitoring:
         rows = [["Source", "Type", "Status", "Last Collected"]]
         for s in monitoring:
             lc = s.get("last_collected_at")
-            rows.append(
-                [
-                    s.get("display_name", s.get("source_id", "-")),
-                    s.get("source_type", "-"),
-                    s.get("status", "-"),
-                    format_local_datetime(lc),
-                ]
-            )
+            rows.append([
+                s.get("display_name", s.get("source_id", "-")),
+                s.get("source_type", "-"),
+                s.get("status", "-"),
+                format_local_datetime(lc),
+            ])
         t = Table(rows, colWidths=[46 * mm, 24 * mm, 24 * mm, 40 * mm])
-        t.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#374151")),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                    ("FONTSIZE", (0, 0), (-1, -1), 8),
-                    ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
-                    ("TOPPADDING", (0, 0), (-1, -1), 4),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                ]
-            )
-        )
+        t.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), COLOR_HEADER),
+            ("TEXTCOLOR",  (0, 0), (-1, 0), colors.white),
+            ("FONTSIZE",   (0, 0), (-1, -1), 8),
+            ("GRID",       (0, 0), (-1, -1), 0.4, colors.grey),
+            ("TOPPADDING",    (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]))
         story.append(t)
     else:
         story.append(Paragraph("No monitoring data available.", normal))
+    story.append(Spacer(1, 14))
+
+    # ─── Conclusion ───────────────────────────────────────────────────────
+    story.append(HRFlowable(width="100%", thickness=1, color=COLOR_PRIMARY, spaceBefore=8))
+    if sla_met:
+        conclusion = (
+            f"<b>Conclusion:</b> The backup system <b>met the SLA target</b> of {sla_target:.2f}% "
+            f"for this period, achieving an actual SLA of <b>{actual_sla:.2f}%</b>. "
+            f"Total {total} backup jobs executed — {success} succeeded, {failed} failed."
+        )
+    else:
+        gap = sla_target - actual_sla
+        conclusion = (
+            f"<b>Conclusion:</b> The backup system <b>did NOT meet the SLA target</b> of {sla_target:.2f}% "
+            f"for this period (actual: <b>{actual_sla:.2f}%</b>, gap: {gap:.2f}%). "
+            f"Total {total} backup jobs — {success} succeeded, {failed} failed "
+            f"({unack} unacknowledged). Immediate investigation is recommended."
+        )
+    story.append(Spacer(1, 6))
+    story.append(Paragraph(conclusion, normal))
+    story.append(Spacer(1, 6))
+    story.append(Paragraph(
+        f"Report generated at {format_local_datetime(datetime.now(timezone.utc), '%Y-%m-%d %H:%M:%S')} WIB by {generated_by_name}.",
+        small,
+    ))
 
     doc.build(story)
