@@ -130,7 +130,7 @@ def seed_metrics(db: Session, users: dict[str, User]) -> None:
     collector_id = users["collector"].id
     now = _now()
 
-    def nas_metrics(source_id: str, cpu: float, ram: float, disk: float, temp: float, at: datetime):
+    def nas_metrics(source_id: str, cpu: float, ram: float, disk: float, at: datetime):
         return [
             Metric(collected_at=at, source_type="nas", source_id=source_id,
                    metric_name="cpu_usage", metric_value=cpu, unit="%", collected_by=collector_id),
@@ -139,19 +139,19 @@ def seed_metrics(db: Session, users: dict[str, User]) -> None:
             Metric(collected_at=at, source_type="nas", source_id=source_id,
                    metric_name="disk_used_pct", metric_value=disk, unit="%", collected_by=collector_id),
             Metric(collected_at=at, source_type="nas", source_id=source_id,
-                   metric_name="temperature", metric_value=temp, unit="C", collected_by=collector_id),
-            Metric(collected_at=at, source_type="nas", source_id=source_id,
                    metric_name="system_uptime", metric_value=1209600, unit="seconds", collected_by=collector_id),
             Metric(collected_at=at, source_type="nas", source_id=source_id,
                    metric_name="snmp_reachable", metric_value=1, unit="bool", collected_by=collector_id),
         ]
 
-    def ceph_metrics(at: datetime, used_pct: float, read_iops: float, write_iops: float):
+    def ceph_metrics(at: datetime, used_pct: float):
         return [
             Metric(collected_at=at, source_type="ceph", source_id="ceph-cluster",
                    metric_name="health_status", metric_text="HEALTH_OK", unit="status", collected_by=collector_id),
             Metric(collected_at=at, source_type="ceph", source_id="ceph-cluster",
                    metric_name="osd_up", metric_value=3, unit="count", collected_by=collector_id),
+            Metric(collected_at=at, source_type="ceph", source_id="ceph-cluster",
+                   metric_name="osd_in", metric_value=3, unit="count", collected_by=collector_id),
             Metric(collected_at=at, source_type="ceph", source_id="ceph-cluster",
                    metric_name="osd_total", metric_value=3, unit="count", collected_by=collector_id),
             Metric(collected_at=at, source_type="ceph", source_id="ceph-cluster",
@@ -161,10 +161,6 @@ def seed_metrics(db: Session, users: dict[str, User]) -> None:
             Metric(collected_at=at, source_type="ceph", source_id="ceph-cluster",
                    metric_name="storage_total_bytes", metric_value=3000000000000, unit="bytes", collected_by=collector_id),
             Metric(collected_at=at, source_type="ceph", source_id="ceph-cluster",
-                   metric_name="read_iops", metric_value=read_iops, unit="iops", collected_by=collector_id),
-            Metric(collected_at=at, source_type="ceph", source_id="ceph-cluster",
-                   metric_name="write_iops", metric_value=write_iops, unit="iops", collected_by=collector_id),
-            Metric(collected_at=at, source_type="ceph", source_id="ceph-cluster",
                    metric_name="ceph_reachable", metric_value=1, unit="bool", collected_by=collector_id),
         ]
 
@@ -172,9 +168,9 @@ def seed_metrics(db: Session, users: dict[str, User]) -> None:
     # A few history points (every ~2 min going back), latest is "now" => fresh.
     for i in range(5):
         at = now - timedelta(minutes=2 * i)
-        all_metrics += nas_metrics("synology-ds1522", 23 + i, 61 - i, 57, 42 + i * 0.5, at)
-        all_metrics += nas_metrics("wd-pr4100", 15 + i, 48 + i, 63, 39 + i * 0.4, at)
-        all_metrics += ceph_metrics(at, 45.2 + i * 0.3, 12 + i, 8 + i)
+        all_metrics += nas_metrics("synology-ds1522", 23 + i, 61 - i, 57, at)
+        all_metrics += nas_metrics("wd-pr4100", 15 + i, 48 + i, 63, at)
+        all_metrics += ceph_metrics(at, 45.2 + i * 0.3)
 
     db.add_all(all_metrics)
     db.commit()

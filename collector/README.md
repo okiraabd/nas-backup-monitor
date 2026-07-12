@@ -144,7 +144,6 @@ vendor:
 | disk_used_pct | % | hrStorage terlebih dahulu; fallback RAID Synology atau volume WD. |
 | storage_total_bytes | bytes | Total storage dari hrStorage, RAID Synology, atau volume WD. |
 | storage_used_bytes | bytes | Storage terpakai dari sumber yang sama dengan disk_used_pct. |
-| temperature | C | Temperatur sistem; fallback temperatur disk maksimum. |
 | system_uptime | seconds | sysUpTime TimeTicks dibagi 100. |
 | snmp_reachable | bool | 1 jika scrape exporter berhasil, 0 jika gagal. |
 
@@ -165,10 +164,9 @@ Prometheus. Metric berikut dikirim:
 |---|---|
 | health_status | ceph_health_status diterjemahkan menjadi HEALTH_OK, HEALTH_WARN, atau HEALTH_ERR. |
 | health_detail | Alert aktif dari ceph_health_detail. |
-| osd_up / osd_total | Jumlah series ceph_osd_up dan ceph_osd_in yang aktif. |
+| osd_up / osd_in / osd_total | osd_up dari ceph_osd_up, osd_in dari ceph_osd_in, osd_total dari jumlah unique ceph_daemon pada metric latency OSD. |
 | storage_total_bytes / storage_used_bytes | ceph_cluster_total_bytes dan ceph_cluster_total_used_bytes. |
 | storage_used_pct | Perhitungan used / total. |
-| read_iops / write_iops | Saat ini selalu 0 pada mode real. |
 | ceph_reachable | 1 untuk scrape berhasil, 0 untuk fallback error. |
 
 Jika Ceph tidak dapat di-scrape, collector mengirim health UNKNOWN dan semua
@@ -226,9 +224,8 @@ curl http://192.168.24.6:9283/metrics
 ~~~
 
 Output Synology idealnya memuat ssCpuIdle, memTotalReal, hrStorageSize,
-hrStorageUsed, temperature, dan sysUpTime. WD idealnya memuat sysUpTime,
-mycloudpr4100Temperature, mycloudpr4100VolumeSize, dan
-mycloudpr4100VolumeFreeSpace.
+hrStorageUsed, dan sysUpTime. WD idealnya memuat sysUpTime,
+mycloudpr4100VolumeSize, dan mycloudpr4100VolumeFreeSpace.
 
 Setelah itu ubah USE_MOCK_METRICS=false, rebuild collector bila memakai
 Compose, dan periksa:

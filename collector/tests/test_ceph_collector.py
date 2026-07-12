@@ -23,6 +23,9 @@ class CephCollectorTest(unittest.TestCase):
             ceph_osd_up{ceph_daemon="osd.1"} 1
             ceph_osd_in{ceph_daemon="osd.0"} 1
             ceph_osd_in{ceph_daemon="osd.1"} 1
+            ceph_osd_apply_latency_ms{ceph_daemon="osd.0"} 43.0
+            ceph_osd_apply_latency_ms{ceph_daemon="osd.1"} 56.0
+            ceph_osd_apply_latency_ms{ceph_daemon="osd.4"} 0.0
             """
 
             def raise_for_status(self):
@@ -38,7 +41,8 @@ class CephCollectorTest(unittest.TestCase):
         self.assertEqual(normalized["storage_used_bytes"]["value"], 250.0)
         self.assertEqual(normalized["storage_used_pct"]["value"], 25.0)
         self.assertEqual(normalized["osd_up"]["value"], 2)
-        self.assertEqual(normalized["osd_total"]["value"], 2)
+        self.assertEqual(normalized["osd_in"]["value"], 2)
+        self.assertEqual(normalized["osd_total"]["value"], 3)
         self.assertEqual(normalized["ceph_reachable"]["value"], 1)
 
 

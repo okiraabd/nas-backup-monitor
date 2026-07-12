@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, CheckCircle2, Clock, XCircle, AlertTriangle, Trash2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, XCircle, AlertTriangle, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -57,12 +57,18 @@ export function BackupLogDetail() {
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
-      await api.delete("/logs/bulk", { data: { log_ids: [parseInt(id!)] } });
+      const res = await api.delete("/logs/bulk", { data: { log_ids: [parseInt(id!)] } });
+      return res.data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      const deletedCount = data?.deleted_count ?? 0;
       queryClient.invalidateQueries({ queryKey: ["logs"] });
       setDeleteConfirmOpen(false);
-      navigate("/dashboard/logs");
+      navigate("/dashboard/logs", {
+        state: {
+          deleteResult: `${deletedCount} backup log${deletedCount === 1 ? "" : "s"} deleted.`,
+        },
+      });
     },
   });
 
@@ -84,7 +90,6 @@ export function BackupLogDetail() {
             <span className="text-muted-foreground text-sm sm:text-base">{log.nas_id} • {log.job_name}</span>
             {log.status === "SUCCESS" && <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20"><CheckCircle2 className="w-3 h-3 mr-1" /> SUCCESS</Badge>}
             {log.status === "FAILED" && <Badge variant="outline" className="bg-rose-500/10 text-rose-500 border-rose-500/20"><XCircle className="w-3 h-3 mr-1" /> FAILED</Badge>}
-            {log.status === "RUNNING" && <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20"><Clock className="w-3 h-3 mr-1" /> RUNNING</Badge>}
           </div>
         </div>
       </div>

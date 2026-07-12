@@ -31,7 +31,6 @@ def get_mock_nas_metrics(nas_id: str) -> list[dict]:
         {"name": "disk_used_pct", "value": used_pct, "unit": "%"},
         {"name": "storage_total_bytes", "value": total_bytes, "unit": "bytes"},
         {"name": "storage_used_bytes", "value": used_bytes, "unit": "bytes"},
-        {"name": "temperature", "value": random.randint(35, 55), "unit": "C"},
         {"name": "system_uptime", "value": random.randint(100000, 5000000), "unit": "seconds"},
         {"name": "snmp_reachable", "value": 1, "unit": "bool"},
     ]
@@ -45,7 +44,6 @@ def _unreachable_metrics() -> list[dict]:
         {"name": "disk_used_pct", "value": 0, "unit": "%"},
         {"name": "storage_total_bytes", "value": 0, "unit": "bytes"},
         {"name": "storage_used_bytes", "value": 0, "unit": "bytes"},
-        {"name": "temperature", "value": 0, "unit": "C"},
         {"name": "system_uptime", "value": 0, "unit": "seconds"},
         {"name": "snmp_reachable", "value": 0, "unit": "bool"},
     ]
@@ -332,20 +330,6 @@ def _disk_usage(metrics: MetricSeries, profile: str) -> tuple[float, float, floa
     return (0.0, 0.0, 0.0)
 
 
-def _temperature(metrics: MetricSeries, names: tuple[str, ...]) -> float:
-    """Read system temperature, falling back to the highest disk temperature."""
-    temp = _get_single(metrics, names)
-    if temp is not None:
-        return round(temp, 1)
-
-    disk_temps: list[float] = []
-    for metric_name in ("diskTemperature", "mycloudpr4100DiskTemperature"):
-        for labels, value in metrics.get(metric_name, []):
-            disk_temps.append(_entry_number(metric_name, labels, value))
-
-    return round(max(disk_temps), 1) if disk_temps else 0.0
-
-
 def _system_uptime(metrics: MetricSeries) -> int:
     """Read sysUpTime and convert TimeTicks hundredths into seconds."""
     uptime_hundredths = _get_single(metrics, ("sysUpTime", "sysUpTimeInstance"), 0) or 0
@@ -353,12 +337,7 @@ def _system_uptime(metrics: MetricSeries) -> int:
 
 
 def _collect_normalized(metrics: MetricSeries, profile: str) -> list[dict]:
-    """Normalize exporter output to the six NAS metrics used by the dashboard."""
-    temp_names = {
-        "synology": ("temperature", "synoSystemTemperature"),
-        "wd": ("mycloudpr4100Temperature",),
-    }.get(profile, ("temperature", "mycloudpr4100Temperature"))
-
+    """Normalize exporter output to the NAS metrics used by the dashboard."""
     used_pct, total_bytes, used_bytes = _disk_usage(metrics, profile)
 
     return [
@@ -367,7 +346,6 @@ def _collect_normalized(metrics: MetricSeries, profile: str) -> list[dict]:
         {"name": "disk_used_pct", "value": used_pct, "unit": "%"},
         {"name": "storage_total_bytes", "value": total_bytes, "unit": "bytes"},
         {"name": "storage_used_bytes", "value": used_bytes, "unit": "bytes"},
-        {"name": "temperature", "value": _temperature(metrics, temp_names), "unit": "C"},
         {"name": "system_uptime", "value": _system_uptime(metrics), "unit": "seconds"},
         {"name": "snmp_reachable", "value": 1, "unit": "bool"},
     ]

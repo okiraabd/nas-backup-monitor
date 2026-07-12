@@ -1,6 +1,5 @@
 """PDF generation using ReportLab — redesigned with SLA focus."""
 from datetime import date, datetime, timezone
-from typing import Any
 
 from reportlab.graphics.charts.barcharts import VerticalBarChart
 from reportlab.graphics.charts.piecharts import Pie
@@ -25,7 +24,6 @@ from app.timezone import format_local_datetime
 COLOR_PRIMARY = colors.HexColor("#1e40af")   # blue-800
 COLOR_SUCCESS = colors.HexColor("#16a34a")   # green-600
 COLOR_DANGER  = colors.HexColor("#dc2626")   # red-600
-COLOR_WARN    = colors.HexColor("#d97706")   # amber-600
 COLOR_HEADER  = colors.HexColor("#1e293b")   # slate-800
 COLOR_ROW_ALT = colors.HexColor("#f1f5f9")   # slate-100
 COLOR_MUTED   = colors.HexColor("#64748b")   # slate-500
@@ -41,14 +39,6 @@ def _fmt_bytes(n: int | None) -> str:
             return f"{size:.1f} {u}"
         size /= 1024
     return f"{n}"
-
-
-def _sla_color(actual: float, target: float) -> Any:
-    if actual >= target:
-        return COLOR_SUCCESS
-    if actual >= target - 1:
-        return COLOR_WARN
-    return COLOR_DANGER
 
 
 def _build_sla_pie(success: int, failed: int) -> Drawing:
@@ -198,9 +188,6 @@ def build_report_pdf(
     failed  = sum(1 for l in logs if l.status == "FAILED")
     unack   = sum(1 for l in logs if l.status == "FAILED" and not l.acknowledged)
     actual_sla = (success / total * 100) if total > 0 else 100.0
-    sla_met = actual_sla >= sla_target
-
-    sla_color = _sla_color(actual_sla, sla_target)
 
     # Summary metrics row
     summary_data = [

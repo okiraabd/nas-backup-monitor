@@ -349,9 +349,6 @@ Setelah perubahan Dockerfile atau kode service, gunakan docker compose up -d
   operasional sebelum production jangka panjang. Backup log dan report dapat
   dihapus manual oleh admin, tetapi metric history belum memiliki endpoint
   purge khusus.
-- Collector nyata melaporkan read_iops dan write_iops Ceph sebagai 0, karena
-  endpoint Prometheus yang dibaca menyediakan counter dan proyek ini belum
-  menghitung rate antar-sampel.
 - Jika SNMP atau Ceph tidak dapat diakses, collector tetap mengirim metrik
   fallback dengan reachability 0 bila API dapat dijangkau. Periksa metrik
   reachability, bukan hanya status proses collector.

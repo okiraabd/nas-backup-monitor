@@ -18,7 +18,7 @@ import {
 } from "recharts";
 
 export function MonitorCeph() {
-  const [metric] = useState("storage_used_pct");
+  const metric = "storage_used_pct";
   const [hours, setHours] = useState(1);
   const [autoRefresh, setAutoRefresh] = useState<number>(10000);
   const queryClient = useQueryClient();
@@ -74,7 +74,8 @@ export function MonitorCeph() {
   const healthStatus = getMetric("health_status")?.text;
   const healthDetail = getMetric("health_detail")?.text;
   const osdUp = getMetric("osd_up")?.value;
-  const osdIn = getMetric("osd_in")?.value ?? getMetric("osd_total")?.value;
+  const osdIn = getMetric("osd_in")?.value;
+  const osdTotal = getMetric("osd_total")?.value;
   const storageUsed = getMetric("storage_used_pct")?.value;
   const storageUsedBytes = getMetric("storage_used_bytes")?.value;
   const storageTotalBytes = getMetric("storage_total_bytes")?.value;
@@ -175,11 +176,11 @@ export function MonitorCeph() {
                 ) : (
                   <>
                     <div className="text-2xl font-bold">
-                      {osdUp !== undefined ? osdUp : "-"} <span className="text-lg font-normal text-muted-foreground">UP</span> / {osdIn !== undefined ? osdIn : "-"} <span className="text-lg font-normal text-muted-foreground">IN</span>
+                      {osdUp !== undefined ? osdUp : "-"} <span className="text-lg font-normal text-muted-foreground">UP</span> / {osdIn !== undefined ? osdIn : "-"} <span className="text-lg font-normal text-muted-foreground">IN</span> / {osdTotal !== undefined ? osdTotal : "-"} <span className="text-lg font-normal text-muted-foreground">TOTAL</span>
                     </div>
-                    {osdUp !== osdIn && osdUp !== undefined && osdIn !== undefined && (
+                    {osdTotal !== undefined && ((osdUp !== undefined && osdUp !== osdTotal) || (osdIn !== undefined && osdIn !== osdTotal)) && (
                       <p className="text-xs text-rose-500 mt-2 flex items-center">
-                        <AlertCircle className="h-3 w-3 mr-1" /> Warning: OSDs down
+                        <AlertCircle className="h-3 w-3 mr-1" /> Warning: OSDs down or out
                       </p>
                     )}
                   </>

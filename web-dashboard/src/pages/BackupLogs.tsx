@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { formatDateTimeWib, jakartaDateToUtcRange } from "@/lib/datetime";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Eye, CheckCircle2, XCircle, History, X, RefreshCw, Trash2, Clock } from "lucide-react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -37,6 +37,8 @@ const bulkPeriodSchema = z.object({
 export function BackupLogs() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  const location = useLocation();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialDate = searchParams.get("date") || "";
 
@@ -49,6 +51,7 @@ export function BackupLogs() {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [selectedLogs, setSelectedLogs] = useState<Set<number>>(new Set());
   const [deleteConfirm, setDeleteConfirm] = useState<{ id?: number, bulk?: boolean, period?: { date_from: string, date_to: string } } | null>(null);
+  const [deleteResult, setDeleteResult] = useState("");
   
   const pageSize = 10;
   const dateFromUrl = searchParams.get("date") || "";
@@ -75,6 +78,14 @@ export function BackupLogs() {
     // If URL changes from outside, update state
     setDateFilter(dateFromUrl);
   }, [dateFromUrl]);
+
+  useEffect(() => {
+    const state = location.state as { deleteResult?: string } | null;
+    if (state?.deleteResult) {
+      setDeleteResult(state.deleteResult);
+      navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+    }
+  }, [location.pathname, location.search, location.state, navigate]);
 
   const clearDateFilter = () => {
     setDateFilter("");
@@ -124,10 +135,12 @@ export function BackupLogs() {
       const res = await api.delete("/logs/bulk", { data: apiPayload });
       return res.data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      const deletedCount = data?.deleted_count ?? 0;
       queryClient.invalidateQueries({ queryKey: ["logs"] });
       setSelectedLogs(new Set());
       setDeleteConfirm(null);
+      setDeleteResult(`${deletedCount} backup log${deletedCount === 1 ? "" : "s"} deleted.`);
     },
   });
 
@@ -190,6 +203,18 @@ export function BackupLogs() {
           </div>
         </div>
       </div>
+
+      {deleteResult && (
+        <div className="bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 p-3 rounded-md text-sm flex items-center justify-between gap-3">
+          <span className="flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
+            {deleteResult}
+          </span>
+          <button type="button" onClick={() => setDeleteResult("")} className="text-emerald-700/70 hover:text-emerald-700">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* Confirm Delete Dialog */}
       <Dialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>

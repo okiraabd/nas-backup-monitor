@@ -22,12 +22,11 @@ def get_mock_ceph_metrics(cluster_id: str) -> list[dict]:
     return [
         {"name": "health_status", "text": health, "unit": "status"},
         {"name": "osd_up", "value": osd_up, "unit": "count"},
+        {"name": "osd_in", "value": osd_up, "unit": "count"},
         {"name": "osd_total", "value": 3, "unit": "count"},
         {"name": "storage_used_pct", "value": used_pct, "unit": "%"},
         {"name": "storage_used_bytes", "value": storage_used, "unit": "bytes"},
         {"name": "storage_total_bytes", "value": storage_total, "unit": "bytes"},
-        {"name": "read_iops", "value": random.randint(0, 150), "unit": "iops"},
-        {"name": "write_iops", "value": random.randint(0, 200), "unit": "iops"},
         {"name": "ceph_reachable", "value": 1, "unit": "bool"},
     ]
 
@@ -40,6 +39,19 @@ def _get_metric_value(metrics: dict, name: str, default: float | None = None) ->
     return series[0][1]
 
 
+def _count_unique_osd_daemons(metrics: dict, names: tuple[str, ...]) -> int:
+    """Count unique ceph_daemon labels from the first available OSD metric."""
+    daemons = set()
+    for name in names:
+        for labels, _value in metrics.get(name, []):
+            daemon = labels.get("ceph_daemon")
+            if daemon:
+                daemons.add(daemon)
+        if daemons:
+            return len(daemons)
+    return 0
+
+
 def get_prometheus_ceph_metrics(metrics_url: str) -> list[dict]:
     """Scrape real Ceph Manager metrics from the Prometheus exporter."""
     try:
@@ -50,12 +62,11 @@ def get_prometheus_ceph_metrics(metrics_url: str) -> list[dict]:
         return [
             {"name": "health_status", "text": "UNKNOWN", "unit": "status"},
             {"name": "osd_up", "value": 0, "unit": "count"},
+            {"name": "osd_in", "value": 0, "unit": "count"},
             {"name": "osd_total", "value": 0, "unit": "count"},
             {"name": "storage_used_pct", "value": 0, "unit": "%"},
             {"name": "storage_used_bytes", "value": 0, "unit": "bytes"},
             {"name": "storage_total_bytes", "value": 0, "unit": "bytes"},
-            {"name": "read_iops", "value": 0, "unit": "iops"},
-            {"name": "write_iops", "value": 0, "unit": "iops"},
             {"name": "ceph_reachable", "value": 0, "unit": "bool"},
         ]
 
@@ -78,12 +89,22 @@ def get_prometheus_ceph_metrics(metrics_url: str) -> list[dict]:
     detail_str = ", ".join(active_alerts) if active_alerts else "None"
     result.append({"name": "health_detail", "text": detail_str, "unit": "info"})
 
-    # OSD up and in (total)
+    # OSD counts: osd_total needs a metric that still lists out/down OSDs.
     osd_up_list = metrics.get("ceph_osd_up", [])
     osd_in_list = metrics.get("ceph_osd_in", [])
-    osd_up = sum([val for labels, val in osd_up_list])
-    osd_total = sum([val for labels, val in osd_in_list])
+    osd_up = sum(1 for _labels, val in osd_up_list if val > 0)
+    osd_in = sum(1 for _labels, val in osd_in_list if val > 0)
+    osd_total = _count_unique_osd_daemons(
+        metrics,
+        (
+            "ceph_osd_apply_latency_ms",
+            "ceph_osd_commit_latency_ms",
+            "ceph_osd_up",
+            "ceph_osd_in",
+        ),
+    )
     result.append({"name": "osd_up", "value": int(osd_up), "unit": "count"})
+    result.append({"name": "osd_in", "value": int(osd_in), "unit": "count"})
     result.append({"name": "osd_total", "value": int(osd_total), "unit": "count"})
 
     # Storage usage
@@ -96,11 +117,6 @@ def get_prometheus_ceph_metrics(metrics_url: str) -> list[dict]:
     if total_bytes > 0:
         used_pct = round((used_bytes / total_bytes) * 100, 2)
     result.append({"name": "storage_used_pct", "value": used_pct, "unit": "%"})
-
-    # IOPS (Metrics are counters, we cannot calculate current IOPS without state)
-    # So we report 0 here. True IOPS requires a time-series DB like Prometheus itself.
-    result.append({"name": "read_iops", "value": 0, "unit": "iops"})
-    result.append({"name": "write_iops", "value": 0, "unit": "iops"})
 
     # Reachability
     result.append({"name": "ceph_reachable", "value": 1, "unit": "bool"})

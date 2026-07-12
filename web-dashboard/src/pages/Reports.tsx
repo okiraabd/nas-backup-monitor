@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { formatDateTimeWib } from "@/lib/datetime";
 import { formatBytes } from "@/lib/utils";
-import { FileText, Download, Trash2, PlusCircle, AlertCircle, Loader2 } from "lucide-react";
+import { FileText, Download, Trash2, PlusCircle, AlertCircle, Loader2, CheckCircle2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -57,6 +57,7 @@ export function Reports() {
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id?: number, bulk?: boolean, period?: { date_from: string, date_to: string } } | null>(null);
   const [bulkPeriodOpen, setBulkPeriodOpen] = useState(false);
+  const [deleteResult, setDeleteResult] = useState("");
 
   const generateForm = useForm<z.infer<typeof generateReportSchema>>({
     resolver: zodResolver(generateReportSchema),
@@ -124,19 +125,23 @@ export function Reports() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["reports"] });
       setDeleteConfirm(null);
+      setDeleteResult("1 report deleted.");
     },
   });
 
   const bulkDeleteMutation = useMutation({
     mutationFn: async (payload: { report_ids?: number[], date_from?: string, date_to?: string }) => {
-      await api.delete(`/reports`, { data: payload });
+      const res = await api.delete(`/reports`, { data: payload });
+      return res.data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      const deletedCount = data?.deleted_count ?? 0;
       queryClient.invalidateQueries({ queryKey: ["reports"] });
       setDeleteConfirm(null);
       setSelectedReports(new Set());
       setBulkPeriodOpen(false);
       periodForm.reset();
+      setDeleteResult(`${deletedCount} report${deletedCount === 1 ? "" : "s"} deleted.`);
     },
   });
 
@@ -283,6 +288,18 @@ export function Reports() {
           </DialogContent>
         </Dialog>
       </div>
+
+      {deleteResult && (
+        <div className="bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 p-3 rounded-md text-sm flex items-center justify-between gap-3">
+          <span className="flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
+            {deleteResult}
+          </span>
+          <button type="button" onClick={() => setDeleteResult("")} className="text-emerald-700/70 hover:text-emerald-700">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       <Dialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
         <DialogContent>

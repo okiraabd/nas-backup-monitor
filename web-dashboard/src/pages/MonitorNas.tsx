@@ -32,6 +32,19 @@ const TIMEFRAME_OPTIONS = [
   { label: "30d", value: 720 },
 ];
 
+function formatUptimeSeconds(value: number | null | undefined) {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "N/A";
+
+  const totalSeconds = Math.max(0, Math.floor(value));
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
 export function MonitorNas() {
   const [selectedNas, setSelectedNas] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState<number>(10000);
@@ -159,10 +172,15 @@ function NasDetailView({ nasId, autoRefresh }: { nasId: string, autoRefresh: num
     return "N/A";
   };
 
+  const getMetricNumber = (name: string) => {
+    const value = snapshot?.metrics?.[name]?.value;
+    return value === null || value === undefined ? null : Number(value);
+  };
+
   return (
     <div className="space-y-6">
-      {/* 3 Full-Width Metric Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Key metric cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-4 flex items-center justify-between">
             <div>
@@ -215,6 +233,22 @@ function NasDetailView({ nasId, autoRefresh }: { nasId: string, autoRefresh: num
                 {formatBytes(snapshot.metrics.storage_used_bytes.value)} / {formatBytes(snapshot.metrics.storage_total_bytes.value)}
               </p>
             )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">System Uptime</p>
+              {loadingSnap ? (
+                <div className="h-8 w-20 animate-pulse bg-muted rounded-md"></div>
+              ) : (
+                <h3 className="text-2xl font-bold">{formatUptimeSeconds(getMetricNumber("system_uptime"))}</h3>
+              )}
+            </div>
+            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+              <Clock className="h-5 w-5 text-primary" />
+            </div>
           </CardContent>
         </Card>
       </div>
