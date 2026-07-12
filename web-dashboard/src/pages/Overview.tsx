@@ -84,7 +84,7 @@ export function Overview() {
         <div className="flex items-center gap-4 text-sm text-muted-foreground hidden lg:flex">
           {summaryQuery.dataUpdatedAt > 0 && (
             <span className="flex items-center gap-1">
-              <Clock className="w-3 h-3" /> 
+              <Clock className="w-3 h-3" />
               Last updated: {new Date(summaryQuery.dataUpdatedAt).toLocaleTimeString()}
             </span>
           )}
@@ -119,7 +119,7 @@ export function Overview() {
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {/* Total NAS */}
-        <Card 
+        <Card
           className="hover:border-primary/50 cursor-pointer transition-colors hover:bg-muted/10"
           onClick={() => navigate('/dashboard/monitor/nas')}
         >
@@ -144,7 +144,7 @@ export function Overview() {
         </Card>
 
         {/* NAS Freshness */}
-        <Card 
+        <Card
           className="hover:border-primary/50 cursor-pointer transition-colors hover:bg-muted/10"
           onClick={() => navigate('/dashboard/monitor/nas')}
         >
@@ -174,7 +174,7 @@ export function Overview() {
         </Card>
 
         {/* Ceph Status */}
-        <Card 
+        <Card
           className="hover:border-primary/50 cursor-pointer transition-colors hover:bg-muted/10"
           onClick={() => navigate('/dashboard/monitor/ceph')}
         >
@@ -206,13 +206,12 @@ export function Overview() {
                 </div>
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
                   <span>Sync:</span>
-                  <Badge 
-                    variant="outline" 
-                    className={`h-5 text-[10px] px-1.5 ${
-                      summary?.ceph_status === 'fresh' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
+                  <Badge
+                    variant="outline"
+                    className={`h-5 text-[10px] px-1.5 ${summary?.ceph_status === 'fresh' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
                       summary?.ceph_status === 'stale' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
-                      'bg-rose-500/10 text-rose-500 border-rose-500/20'
-                    }`}
+                        'bg-rose-500/10 text-rose-500 border-rose-500/20'
+                      }`}
                   >
                     {summary?.ceph_status ? summary.ceph_status.charAt(0).toUpperCase() + summary.ceph_status.slice(1) : 'Offline'}
                   </Badge>
@@ -223,7 +222,7 @@ export function Overview() {
         </Card>
 
         {/* Ceph Storage */}
-        <Card 
+        <Card
           className="hover:border-primary/50 cursor-pointer transition-colors hover:bg-muted/10"
           onClick={() => navigate('/dashboard/monitor/ceph')}
         >
@@ -246,8 +245,8 @@ export function Overview() {
                 {/* Visual progress bar representation */}
                 {summary?.storage_used_pct !== null && summary?.storage_used_pct !== undefined && (
                   <div className="w-full bg-muted rounded-full h-2 mt-2 overflow-hidden">
-                    <div 
-                      className={`h-full ${summary.storage_used_pct >= 85 ? 'bg-destructive' : summary.storage_used_pct >= 70 ? 'bg-amber-500' : 'bg-primary'}`} 
+                    <div
+                      className={`h-full ${summary.storage_used_pct >= 85 ? 'bg-destructive' : summary.storage_used_pct >= 70 ? 'bg-amber-500' : 'bg-primary'}`}
                       style={{ width: `${Math.min(100, Math.max(0, summary.storage_used_pct))}%`, transition: 'width 0.5s ease-in-out' }}
                     />
                   </div>
@@ -282,7 +281,7 @@ export function Overview() {
                 No failed backups found! 🎉
               </div>
             ) : (
-              <div className="space-y-4 max-h-[250px] overflow-y-auto pr-2 custom-scrollbar">
+              <div className="space-y-4 max-h-[380px] overflow-y-auto pr-2 custom-scrollbar">
                 {logsData?.items?.map((log: any) => (
                   <Link key={log.id} to={`/dashboard/logs/${log.id}`} className="block">
                     <div className="flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-muted/50 cursor-pointer transition-colors">
@@ -291,7 +290,7 @@ export function Overview() {
                           <XCircle className="h-4 w-4 text-destructive" />
                           {log.nas_id}
                           {log.acknowledged && (
-                             <Badge variant="outline" className="text-[10px] h-5">Ack'd</Badge>
+                            <Badge variant="outline" className="text-[10px] h-5">Ack'd</Badge>
                           )}
                         </div>
                         <div className="text-sm text-muted-foreground mt-1">
@@ -310,24 +309,27 @@ export function Overview() {
             )}
           </CardContent>
         </Card>
-        
+
         {/* System Activity Chart */}
         <Card className="col-span-4">
           <CardHeader className="pb-2">
-            <CardTitle>Backup Job Trends</CardTitle>
+            <CardTitle className="flex items-baseline gap-2">
+              Backup Job Trends
+              <span className="text-sm font-normal text-muted-foreground">(Last 7 Days)</span>
+            </CardTitle>
             <CardDescription>Click on a bar to view detailed logs for that day</CardDescription>
           </CardHeader>
           <CardContent>
             {activityError ? (
-              <div className="flex h-[250px] items-center justify-center border border-dashed rounded-md text-destructive">
+              <div className="flex h-[380px] items-center justify-center border border-dashed rounded-md text-destructive">
                 <div className="flex flex-col items-center gap-2"><AlertCircle className="h-6 w-6" /> <p>Failed to load chart data.</p></div>
               </div>
             ) : loadingActivity ? (
-              <div className="flex h-[250px] items-center justify-center border border-dashed rounded-md text-muted-foreground">
+              <div className="flex h-[380px] items-center justify-center border border-dashed rounded-md text-muted-foreground">
                 <div className="animate-pulse">Loading Chart...</div>
               </div>
             ) : (
-              <div className="h-[250px] w-full">
+              <div className="h-[380px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={activityData?.days || []}
@@ -343,39 +345,39 @@ export function Overview() {
                     style={{ cursor: 'pointer' }}
                   >
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="currentColor" className="opacity-10" />
-                    <XAxis 
-                      dataKey="date" 
-                      tickLine={false} 
-                      axisLine={false} 
-                      fontSize={12} 
-                      stroke="currentColor" 
+                    <XAxis
+                      dataKey="date"
+                      tickLine={false}
+                      axisLine={false}
+                      fontSize={12}
+                      stroke="currentColor"
                       className="opacity-50"
                       tickFormatter={(value) => {
-                         // Simplify date to short format if it's YYYY-MM-DD
-                         if (value.length === 10) return value.substring(5);
-                         return value;
+                        // Simplify date to short format if it's YYYY-MM-DD
+                        if (value.length === 10) return value.substring(5);
+                        return value;
                       }}
                     />
-                    <YAxis 
-                      tickLine={false} 
-                      axisLine={false} 
-                      fontSize={12} 
-                      stroke="currentColor" 
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      fontSize={12}
+                      stroke="currentColor"
                       className="opacity-50"
                       allowDecimals={false}
                     />
-                    <Tooltip 
-                      cursor={{fill: 'var(--muted)', opacity: 0.2}}
+                    <Tooltip
+                      cursor={{ fill: 'var(--muted)', opacity: 0.2 }}
                       contentStyle={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', borderRadius: 'var(--radius)' }}
                       itemStyle={{ color: 'var(--foreground)' }}
                     />
                     <Legend iconType="circle" wrapperStyle={{ fontSize: '12px' }} />
-                    <Bar 
-                      dataKey="success" 
-                      name="Success" 
-                      stackId="a" 
-                      fill="#10b981" 
-                      radius={[0, 0, 4, 4]} 
+                    <Bar
+                      dataKey="success"
+                      name="Success"
+                      stackId="a"
+                      fill="#10b981"
+                      radius={[0, 0, 4, 4]}
                       onClick={(data: any) => {
                         if (data && data.date) {
                           navigate(`/dashboard/logs?date=${data.date}`);
@@ -383,12 +385,12 @@ export function Overview() {
                       }}
                       style={{ cursor: 'pointer' }}
                     />
-                    <Bar 
-                      dataKey="failed" 
-                      name="Failed" 
-                      stackId="a" 
-                      fill="#f43f5e" 
-                      radius={[4, 4, 0, 0]} 
+                    <Bar
+                      dataKey="failed"
+                      name="Failed"
+                      stackId="a"
+                      fill="#f43f5e"
+                      radius={[4, 4, 0, 0]}
                       onClick={(data: any) => {
                         if (data && data.date) {
                           navigate(`/dashboard/logs?date=${data.date}`);
