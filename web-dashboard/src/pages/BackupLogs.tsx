@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { formatDateTimeWib, formatTimeWib, jakartaDateToUtcRange } from "@/lib/datetime";
+import { formatDateTimeWib, jakartaDateToUtcRange } from "@/lib/datetime";
 import { Link, useSearchParams } from "react-router-dom";
-import { Eye, CheckCircle2, XCircle, History, X, RefreshCw, Trash2 } from "lucide-react";
+import { Eye, CheckCircle2, XCircle, History, X, RefreshCw, Trash2, Clock } from "lucide-react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -45,7 +45,7 @@ export function BackupLogs() {
   const [nasId, setNasId] = useState("ALL");
   const [jobName, setJobName] = useState("");
   const [dateFilter, setDateFilter] = useState(initialDate);
-  const [autoRefresh, setAutoRefresh] = useState("0");
+  const [autoRefresh, setAutoRefresh] = useState("10");
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [selectedLogs, setSelectedLogs] = useState<Set<number>>(new Set());
   const [deleteConfirm, setDeleteConfirm] = useState<{ id?: number, bulk?: boolean, period?: { date_from: string, date_to: string } } | null>(null);
@@ -156,33 +156,38 @@ export function BackupLogs() {
             History of all backup jobs from your NAS devices.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4 text-sm text-muted-foreground hidden lg:flex">
           {dataUpdatedAt > 0 && (
-            <span className="text-xs text-muted-foreground mr-2">
-              Last updated: {formatTimeWib(dataUpdatedAt, { seconds: true })}
+            <span className="flex items-center gap-1">
+              <Clock className="w-3 h-3" /> 
+              Last updated: {new Date(dataUpdatedAt).toLocaleTimeString()}
             </span>
           )}
-          <Select value={autoRefresh} onValueChange={setAutoRefresh}>
-            <SelectTrigger className="w-36">
-              <SelectValue placeholder="Auto Refresh" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="0">Auto Refresh: Off</SelectItem>
-              <SelectItem value="10">Every 10s</SelectItem>
-              <SelectItem value="30">Every 30s</SelectItem>
-              <SelectItem value="60">Every 1m</SelectItem>
-              <SelectItem value="300">Every 5m</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleManualRefresh}
-            disabled={isFetching}
-            title="Refresh Now"
-          >
-            <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
-          </Button>
+          <div className="flex items-center gap-2 border-l pl-4 border-border">
+            <span className="text-xs">Auto Refresh:</span>
+            <Select value={autoRefresh} onValueChange={setAutoRefresh}>
+              <SelectTrigger className="h-8 w-[80px] text-xs bg-background">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="0">Off</SelectItem>
+                <SelectItem value="10">10s</SelectItem>
+                <SelectItem value="30">30s</SelectItem>
+                <SelectItem value="60">1m</SelectItem>
+                <SelectItem value="300">5m</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8 bg-background"
+              onClick={handleManualRefresh}
+              disabled={isFetching}
+              title="Refresh Now"
+            >
+              <RefreshCw className={`h-3 w-3 ${isFetching ? "animate-spin" : ""}`} />
+            </Button>
+          </div>
         </div>
       </div>
 
