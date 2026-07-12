@@ -124,7 +124,7 @@ export function Overview() {
           onClick={() => navigate('/dashboard/monitor/nas')}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total NAS Monitored</CardTitle>
+            <CardTitle className="text-sm font-medium">NAS Total</CardTitle>
             <Server className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -136,7 +136,7 @@ export function Overview() {
               <>
                 <div className="text-2xl font-bold">{summary?.total_nas || 0}</div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Active endpoints
+                  Monitored endpoints
                 </p>
               </>
             )}
@@ -149,7 +149,7 @@ export function Overview() {
           onClick={() => navigate('/dashboard/monitor/nas')}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">NAS Health</CardTitle>
+            <CardTitle className="text-sm font-medium">NAS Sync Status</CardTitle>
             <ActivityIcon />
           </CardHeader>
           <CardContent>
@@ -179,7 +179,7 @@ export function Overview() {
           onClick={() => navigate('/dashboard/monitor/ceph')}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Ceph Cluster</CardTitle>
+            <CardTitle className="text-sm font-medium">Ceph Health</CardTitle>
             <Database className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -204,9 +204,19 @@ export function Overview() {
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Status: {summary?.ceph_status}
-                </p>
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
+                  <span>Sync:</span>
+                  <Badge 
+                    variant="outline" 
+                    className={`h-5 text-[10px] px-1.5 ${
+                      summary?.ceph_status === 'fresh' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
+                      summary?.ceph_status === 'stale' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
+                      'bg-rose-500/10 text-rose-500 border-rose-500/20'
+                    }`}
+                  >
+                    {summary?.ceph_status ? summary.ceph_status.charAt(0).toUpperCase() + summary.ceph_status.slice(1) : 'Offline'}
+                  </Badge>
+                </div>
               </>
             )}
           </CardContent>
@@ -218,7 +228,7 @@ export function Overview() {
           onClick={() => navigate('/dashboard/monitor/ceph')}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Ceph Storage Used</CardTitle>
+            <CardTitle className="text-sm font-medium">Ceph Storage</CardTitle>
             <Database className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -303,7 +313,7 @@ export function Overview() {
         {/* System Activity Chart */}
         <Card className="col-span-3">
           <CardHeader className="pb-2">
-            <CardTitle>System Activity</CardTitle>
+            <CardTitle>Backup Job Trends</CardTitle>
             <CardDescription>Click on a bar to view detailed logs for that day</CardDescription>
           </CardHeader>
           <CardContent>
