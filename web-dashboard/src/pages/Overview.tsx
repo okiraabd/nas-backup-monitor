@@ -76,8 +76,8 @@ export function Overview() {
     <div className="space-y-6">
       <div className="flex justify-between items-end">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Dashboard Overview</h2>
-          <p className="text-muted-foreground mt-2">
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Dashboard Overview</h2>
+          <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base hidden sm:block">
             Monitor your NAS backup fleet and Ceph storage cluster.
           </p>
         </div>
@@ -117,7 +117,7 @@ export function Overview() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         {/* Total NAS */}
         <Card
           className="hover:border-primary/50 cursor-pointer transition-colors hover:bg-muted/10"
@@ -258,9 +258,9 @@ export function Overview() {
       </div>
 
       {/* Recent Failed Backups Section */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7 mt-4">
+      <div className="grid gap-4 grid-cols-1 lg:grid-cols-7 mt-4">
         {/* Recent Failed Backups */}
-        <Card className="col-span-3">
+        <Card className="lg:col-span-3">
           <CardHeader>
             <CardTitle>Recent Failed Backups</CardTitle>
           </CardHeader>
@@ -311,7 +311,7 @@ export function Overview() {
         </Card>
 
         {/* System Activity Chart */}
-        <Card className="col-span-4">
+        <Card className="lg:col-span-4">
           <CardHeader className="pb-2">
             <CardTitle className="flex items-baseline gap-2">
               Backup Job Trends
@@ -329,7 +329,7 @@ export function Overview() {
                 <div className="animate-pulse">Loading Chart...</div>
               </div>
             ) : (
-              <div className="h-[380px] w-full">
+              <div className="h-[280px] sm:h-[380px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={activityData?.days || []}

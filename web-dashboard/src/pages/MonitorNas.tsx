@@ -66,8 +66,8 @@ export function MonitorNas() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">NAS Monitoring</h2>
-          <p className="text-muted-foreground mt-2">
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">NAS Monitoring</h2>
+          <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base hidden sm:block">
             Real-time metrics and health status of all registered NAS endpoints.
           </p>
         </div>
@@ -103,7 +103,7 @@ export function MonitorNas() {
             onValueChange={setSelectedNas}
             disabled={loadingList || nasList?.items?.length === 0}
           >
-            <SelectTrigger className="w-64 bg-background">
+            <SelectTrigger className="w-full sm:w-64 bg-background">
               <Server className="w-4 h-4 mr-2 text-muted-foreground" />
               <SelectValue placeholder="Select NAS Device" />
             </SelectTrigger>

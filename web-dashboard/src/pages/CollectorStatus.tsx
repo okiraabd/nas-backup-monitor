@@ -37,21 +37,23 @@ export function CollectorStatus() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-end">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-3 sm:gap-4">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Collector Status</h2>
-          <p className="text-muted-foreground mt-2">
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Collector Status</h2>
+          <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base">
             Status of the background metrics collection agent.
           </p>
         </div>
         <Button 
           onClick={() => runMutation.mutate()} 
           disabled={runMutation.isPending || isTriggering || status?.last_status === "RUNNING"}
+          className="self-start sm:self-auto"
+          size="sm"
         >
           {runMutation.isPending || status?.last_status === "RUNNING" ? (
-            <><RefreshCw className="mr-2 h-4 w-4 animate-spin" /> Running...</>
+            <><RefreshCw className="mr-2 h-4 w-4 animate-spin" /> <span className="hidden sm:inline">Running...</span><span className="sm:hidden">Run...</span></>
           ) : (
-            <><Play className="mr-2 h-4 w-4" /> Run Collector Now</>
+            <><Play className="mr-2 h-4 w-4" /> <span className="hidden sm:inline">Run Collector Now</span><span className="sm:hidden">Run Now</span></>
           )}
         </Button>
       </div>

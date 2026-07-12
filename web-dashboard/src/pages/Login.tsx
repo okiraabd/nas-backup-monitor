@@ -63,11 +63,11 @@ export function Login() {
   return (
     <div className="flex h-screen w-full items-center justify-center bg-muted/40 p-4">
       <Card className="w-full max-w-md shadow-lg border-primary/20">
-        <CardHeader className="space-y-2 text-center pb-8">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-            <Server className="h-8 w-8 text-primary" />
+        <CardHeader className="space-y-2 text-center pb-6 sm:pb-8">
+          <div className="mx-auto mb-2 sm:mb-4 flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-full bg-primary/10">
+            <Server className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
           </div>
-          <CardTitle className="text-3xl font-bold tracking-tight">Backup Monitor</CardTitle>
+          <CardTitle className="text-2xl sm:text-3xl font-bold tracking-tight">Backup Monitor</CardTitle>
           <CardDescription>
             Enter your credentials to access the dashboard
           </CardDescription>

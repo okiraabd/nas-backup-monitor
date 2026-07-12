@@ -172,10 +172,10 @@ export function Reports() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-end">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-3 sm:gap-4">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Reports</h2>
-          <p className="text-muted-foreground mt-2">
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Reports</h2>
+          <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base hidden sm:block">
             Generate and download PDF reports of backup operations.
           </p>
         </div>
@@ -368,12 +368,12 @@ export function Reports() {
       </Dialog>
 
       <Card>
-        <CardHeader className="pb-3 flex flex-row items-center justify-between">
+        <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <CardTitle>Generated Reports</CardTitle>
             <CardDescription>View and download previously generated reports</CardDescription>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4">
             {isAdmin && selectedReports.size > 0 && (
               <Button 
                 variant="destructive" 
@@ -381,7 +381,7 @@ export function Reports() {
                 onClick={() => setDeleteConfirm({ bulk: true })}
               >
                 <Trash2 className="mr-2 h-4 w-4" />
-                Delete Selected ({selectedReports.size})
+                Delete ({selectedReports.size})
               </Button>
             )}
             {isAdmin && (
@@ -391,12 +391,13 @@ export function Reports() {
                 onClick={() => setBulkPeriodOpen(true)}
               >
                 <Trash2 className="mr-2 h-4 w-4 text-destructive" />
-                Delete by Period
+                <span className="hidden sm:inline">Delete by Period</span>
+                <span className="sm:hidden">By Period</span>
               </Button>
             )}
-            <div className="w-64">
+            <div className="w-full sm:w-64">
               <Input
-                placeholder="Search reports by filename..."
+                placeholder="Search reports..."
                 value={searchFilter}
                 onChange={(e) => setSearchFilter(e.target.value)}
               />
@@ -404,7 +405,7 @@ export function Reports() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
+          <div className="rounded-md border overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -423,10 +424,10 @@ export function Reports() {
                     </TableHead>
                   )}
                   <TableHead>Filename</TableHead>
-                  <TableHead>Period</TableHead>
-                  <TableHead>Filter</TableHead>
-                  <TableHead>Generated At</TableHead>
-                  <TableHead>Size</TableHead>
+                  <TableHead className="hidden md:table-cell">Period</TableHead>
+                  <TableHead className="hidden lg:table-cell">Filter</TableHead>
+                  <TableHead className="hidden sm:table-cell">Generated At</TableHead>
+                  <TableHead className="hidden md:table-cell">Size</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -479,14 +480,14 @@ export function Reports() {
                       )}
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
-                          <FileText className="h-4 w-4 text-muted-foreground" />
-                          <span>{report.filename}</span>
+                          <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <span className="truncate max-w-[150px] sm:max-w-none">{report.filename}</span>
                         </div>
                       </TableCell>
-                      <TableCell>{report.date_from} to {report.date_to}</TableCell>
-                      <TableCell>{report.nas_filter || <span className="text-muted-foreground">All NAS</span>}</TableCell>
-                      <TableCell>{formatDateTimeWib(report.generated_at, { seconds: false })}</TableCell>
-                      <TableCell>{report.file_size_bytes ? formatBytes(report.file_size_bytes) : '-'}</TableCell>
+                      <TableCell className="hidden md:table-cell">{report.date_from} to {report.date_to}</TableCell>
+                      <TableCell className="hidden lg:table-cell">{report.nas_filter || <span className="text-muted-foreground">All NAS</span>}</TableCell>
+                      <TableCell className="hidden sm:table-cell">{formatDateTimeWib(report.generated_at, { seconds: false })}</TableCell>
+                      <TableCell className="hidden md:table-cell">{report.file_size_bytes ? formatBytes(report.file_size_bytes) : '-'}</TableCell>
                       <TableCell className="text-right space-x-2">
                         <Button 
                           variant="secondary" 

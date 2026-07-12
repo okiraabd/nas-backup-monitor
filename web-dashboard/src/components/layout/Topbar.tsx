@@ -1,4 +1,4 @@
-import { LogOut, User as UserIcon } from "lucide-react";
+import { LogOut, User as UserIcon, Menu } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { ModeToggle } from "@/components/ModeToggle";
 import { Button } from "@/components/ui/button";
@@ -11,15 +11,32 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-export function Topbar() {
+interface TopbarProps {
+  onMenuToggle: () => void;
+}
+
+export function Topbar({ onMenuToggle }: TopbarProps) {
   const { user, logout } = useAuth();
 
   return (
-    <header className="flex h-16 items-center justify-between border-b bg-background px-6">
-      <div className="flex items-center gap-4">
-        {/* Can add breadcrumbs or page title here later */}
+    <header className="flex h-14 sm:h-16 items-center justify-between border-b bg-background px-3 sm:px-4 md:px-6">
+      <div className="flex items-center gap-2 sm:gap-4">
+        {/* Hamburger menu — mobile only */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="md:hidden h-9 w-9"
+          onClick={onMenuToggle}
+          aria-label="Open navigation menu"
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
+        {/* Mobile title (visible only on mobile since sidebar is hidden) */}
+        <span className="md:hidden text-sm font-semibold text-primary truncate">
+          Backup Monitor
+        </span>
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 sm:gap-4">
         <ModeToggle />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

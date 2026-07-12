@@ -191,10 +191,10 @@ export function Users() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-end">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-3 sm:gap-4">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">User Management</h2>
-          <p className="text-muted-foreground mt-2">
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">User Management</h2>
+          <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base hidden sm:block">
             Manage admin accounts, NAS service accounts, and collectors.
           </p>
         </div>
@@ -477,54 +477,57 @@ export function Users() {
       </Dialog>
 
       <Card>
-        <CardHeader className="pb-3 flex flex-row items-center justify-between">
+        <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <CardTitle className="flex items-center gap-2">
             <UsersIcon className="h-5 w-5" />
             Registered Accounts
           </CardTitle>
-          <div className="flex gap-4 items-center">
-            <div className="w-56">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 sm:items-center">
+            <div className="w-full sm:w-56">
               <Input
                 placeholder="Search username or name..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            <div className="w-40">
-              <Select value={roleFilter} onValueChange={setRoleFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All Roles" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Roles</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="operator">Operator</SelectItem>
-                  <SelectItem value="service">Service</SelectItem>
-                  <SelectItem value="collector">Collector</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="flex gap-2 items-center">
+              <div className="flex-1 sm:w-40">
+                <Select value={roleFilter} onValueChange={setRoleFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Roles" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Roles</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="operator">Operator</SelectItem>
+                    <SelectItem value="service">Service</SelectItem>
+                    <SelectItem value="collector">Collector</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                variant={showInactive ? "secondary" : "outline"}
+                size="sm"
+                onClick={() => setShowInactive((v) => !v)}
+                title={showInactive ? "Hide Inactive Users" : "Show Inactive Users"}
+                className="shrink-0"
+              >
+                {showInactive ? <EyeOff className="h-4 w-4 sm:mr-1" /> : <Eye className="h-4 w-4 sm:mr-1" />}
+                <span className="hidden sm:inline">{showInactive ? "Hide Inactive" : "Show Inactive"}</span>
+              </Button>
             </div>
-            <Button
-              variant={showInactive ? "secondary" : "outline"}
-              size="sm"
-              onClick={() => setShowInactive((v) => !v)}
-              title={showInactive ? "Hide Inactive Users" : "Show Inactive Users"}
-            >
-              {showInactive ? <EyeOff className="h-4 w-4 mr-1" /> : <Eye className="h-4 w-4 mr-1" />}
-              {showInactive ? "Hide Inactive" : "Show Inactive"}
-            </Button>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
+          <div className="rounded-md border overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Username</TableHead>
-                  <TableHead>Name</TableHead>
+                  <TableHead className="hidden md:table-cell">Name</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Last Login</TableHead>
+                  <TableHead className="hidden sm:table-cell">Last Login</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -557,8 +560,8 @@ export function Users() {
                     )
                   ).map((user: any) => (
                     <TableRow key={user.id}>
-                      <TableCell className="font-medium font-mono">{user.username}</TableCell>
-                      <TableCell>{user.display_name}</TableCell>
+                      <TableCell className="font-medium font-mono text-xs sm:text-sm">{user.username}</TableCell>
+                      <TableCell className="hidden md:table-cell">{user.display_name}</TableCell>
                       <TableCell>
                         <Badge variant={user.role === 'admin' ? 'default' : user.role === 'operator' ? 'secondary' : 'outline'}>
                           {user.role}
@@ -571,7 +574,7 @@ export function Users() {
                           <Badge variant="outline" className="text-muted-foreground">Inactive</Badge>
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="hidden sm:table-cell">
                         {user.last_login_at ? formatDateTimeWib(user.last_login_at, { seconds: false }) : "Never"}
                       </TableCell>
                       <TableCell className="text-right space-x-2">

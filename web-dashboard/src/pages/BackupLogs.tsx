@@ -149,10 +149,10 @@ export function BackupLogs() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-end">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-3 sm:gap-4">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Backup Logs</h2>
-          <p className="text-muted-foreground mt-2">
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Backup Logs</h2>
+          <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base hidden sm:block">
             History of all backup jobs from your NAS devices.
           </p>
         </div>
@@ -307,8 +307,8 @@ export function BackupLogs() {
             </div>
           </div>
           
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="w-56">
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 sm:gap-3">
+            <div className="col-span-2 sm:w-56">
               <Select value={nasId} onValueChange={(val) => { setNasId(val); setPage(1); }}>
                 <SelectTrigger>
                   <SelectValue placeholder="All NAS Devices" />
@@ -323,9 +323,9 @@ export function BackupLogs() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="w-48">
+            <div className="sm:w-48">
               <Input 
-                placeholder="Search Job Name..." 
+                placeholder="Search Job..." 
                 value={jobName}
                 onChange={(e) => {
                   setJobName(e.target.value);
@@ -333,7 +333,7 @@ export function BackupLogs() {
                 }}
               />
             </div>
-            <div className="w-48">
+            <div className="sm:w-48">
               <Select value={status} onValueChange={(val) => { setStatus(val); setPage(1); }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Status" />
@@ -345,7 +345,7 @@ export function BackupLogs() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="w-48 relative">
+            <div className="sm:w-48 relative">
               <Input
                 type="date"
                 value={dateFilter}
@@ -374,7 +374,7 @@ export function BackupLogs() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
+          <div className="rounded-md border overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -394,9 +394,9 @@ export function BackupLogs() {
                   )}
                   <TableHead>Time</TableHead>
                   <TableHead>NAS ID</TableHead>
-                  <TableHead>Job Name</TableHead>
+                  <TableHead className="hidden sm:table-cell">Job Name</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Duration</TableHead>
+                  <TableHead className="hidden md:table-cell">Duration</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -435,20 +435,20 @@ export function BackupLogs() {
                           />
                         </TableCell>
                       )}
-                      <TableCell className="font-medium whitespace-nowrap">
+                      <TableCell className="font-medium whitespace-nowrap text-xs sm:text-sm">
                         {formatDateTimeWib(log.created_at)}
                       </TableCell>
-                      <TableCell>{log.nas_id}</TableCell>
-                      <TableCell>{log.job_name}</TableCell>
+                      <TableCell className="text-xs sm:text-sm">{log.nas_id}</TableCell>
+                      <TableCell className="hidden sm:table-cell">{log.job_name}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           {getStatusBadge(log.status)}
                           {log.status === "FAILED" && log.acknowledged && (
-                            <Badge variant="secondary" className="text-xs">Ack'd</Badge>
+                            <Badge variant="secondary" className="text-xs hidden sm:inline-flex">Ack'd</Badge>
                           )}
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="hidden md:table-cell">
                         {log.duration_seconds ? `${log.duration_seconds}s` : "-"}
                       </TableCell>
                       <TableCell className="text-right">
@@ -467,9 +467,9 @@ export function BackupLogs() {
           
           {/* Pagination */}
           {data && data.total > 0 && (
-            <div className="flex items-center justify-between space-x-2 py-4">
-              <div className="text-sm text-muted-foreground">
-                Showing {(page - 1) * pageSize + 1} to {Math.min(page * pageSize, data.total)} of {data.total} entries
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 py-4">
+              <div className="text-xs sm:text-sm text-muted-foreground">
+                {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, data.total)} of {data.total}
               </div>
               <div className="flex space-x-2">
                 <Button

@@ -89,8 +89,8 @@ export function MonitorCeph() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Ceph Storage</h2>
-          <p className="text-muted-foreground mt-2">
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Ceph Storage</h2>
+          <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base hidden sm:block">
             Monitor your object storage backend health and utilization.
           </p>
         </div>
@@ -221,12 +221,12 @@ export function MonitorCeph() {
 
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
                   <CardTitle>Storage Utilization History</CardTitle>
                   <CardDescription>Last {hours >= 24 ? `${hours / 24}d` : `${hours}h`} of data</CardDescription>
                 </div>
-                <div className="flex gap-1">
+                <div className="flex flex-wrap gap-1">
                   {TIMEFRAME_OPTIONS.map((opt) => (
                     <Button
                       key={opt.value}
@@ -251,7 +251,7 @@ export function MonitorCeph() {
                   No historical data available
                 </div>
               ) : (
-                <div className="h-[350px] w-full">
+                <div className="h-[250px] sm:h-[350px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
                       <defs>

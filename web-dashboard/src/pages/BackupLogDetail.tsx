@@ -74,14 +74,14 @@ export function BackupLogDetail() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="outline" size="icon" asChild>
+      <div className="flex items-start sm:items-center gap-3 sm:gap-4">
+        <Button variant="outline" size="icon" asChild className="shrink-0 mt-1 sm:mt-0">
           <Link to="/dashboard/logs"><ArrowLeft className="h-4 w-4" /></Link>
         </Button>
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Log Details: #{log.id}</h2>
-          <div className="flex items-center gap-2 mt-1">
-            <span className="text-muted-foreground">{log.nas_id} • {log.job_name}</span>
+        <div className="min-w-0">
+          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">Log Details: #{log.id}</h2>
+          <div className="flex flex-wrap items-center gap-2 mt-1">
+            <span className="text-muted-foreground text-sm sm:text-base">{log.nas_id} • {log.job_name}</span>
             {log.status === "SUCCESS" && <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20"><CheckCircle2 className="w-3 h-3 mr-1" /> SUCCESS</Badge>}
             {log.status === "FAILED" && <Badge variant="outline" className="bg-rose-500/10 text-rose-500 border-rose-500/20"><XCircle className="w-3 h-3 mr-1" /> FAILED</Badge>}
             {log.status === "RUNNING" && <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20"><Clock className="w-3 h-3 mr-1" /> RUNNING</Badge>}
@@ -90,11 +90,13 @@ export function BackupLogDetail() {
       </div>
 
       {isFailed && !log.acknowledged && (
-        <div className="bg-rose-500/10 border border-rose-500/20 p-4 rounded-md flex items-start gap-3">
-          <AlertTriangle className="h-5 w-5 text-rose-500 mt-0.5" />
-          <div className="flex-1">
-            <h4 className="text-rose-500 font-medium">Backup Failed</h4>
-            <p className="text-sm text-rose-500/80 mt-1">{log.message || "No error message provided."}</p>
+        <div className="bg-rose-500/10 border border-rose-500/20 p-3 sm:p-4 rounded-md flex flex-col sm:flex-row sm:items-start gap-3">
+          <div className="flex items-start gap-3 flex-1">
+            <AlertTriangle className="h-5 w-5 text-rose-500 mt-0.5 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <h4 className="text-rose-500 font-medium">Backup Failed</h4>
+              <p className="text-sm text-rose-500/80 mt-1 break-all">{log.message || "No error message provided."}</p>
+            </div>
           </div>
           {canAcknowledge && (
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
