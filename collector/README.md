@@ -105,7 +105,7 @@ Ini mode yang direkomendasikan. SNMP Exporter berada di host terpusat dan
 collector membentuk request berikut:
 
 ~~~text
-SNMP_EXPORTER_URL?auth=PROFILE&target=IP_NAS&module=MODULE
+SNMP_EXPORTER_URL[?query_yang_sudah_ada]&target=IP_NAS&module=MODULE
 ~~~
 
 Contoh:
@@ -115,8 +115,10 @@ SNMP_EXPORTER_URL=http://snmp-exporter:9116/snmp?auth=kkp_snmp_v2
 NAS_TARGETS=synology-ds1522|192.168.24.5|synology_nas,wd-pr4100|192.168.24.4|wd_pr4100
 ~~~
 
-Collector mempertahankan query auth yang sudah ada, lalu menambahkan target dan
-module. Hindari meletakkan exporter di internet publik.
+Collector mempertahankan query yang sudah ada, misalnya auth=kkp_snmp_v2, lalu
+menambahkan target dan module. Field profile pada NAS_TARGETS bukan auth SNMP;
+ia hanya petunjuk normalisasi lokal ketika nama module tidak cukup jelas.
+Hindari meletakkan exporter di internet publik.
 
 ### Mode legacy per target
 
@@ -132,13 +134,16 @@ Gunakan centralized exporter untuk deployment baru.
 
 ### Normalisasi NAS
 
-Dashboard selalu menerima enam metric berikut, terlepas dari nama MIB vendor:
+Dashboard selalu menerima delapan metric NAS berikut, terlepas dari nama MIB
+vendor:
 
 | Metric API | Unit | Sumber/perhitungan |
 |---|---|---|
 | cpu_usage | % | 100 - ssCpuIdle; fallback ssCpuUser + ssCpuSystem. |
 | ram_used_pct | % | memTotalReal dibanding memAvailReal + buffer + cache. |
 | disk_used_pct | % | hrStorage terlebih dahulu; fallback RAID Synology atau volume WD. |
+| storage_total_bytes | bytes | Total storage dari hrStorage, RAID Synology, atau volume WD. |
+| storage_used_bytes | bytes | Storage terpakai dari sumber yang sama dengan disk_used_pct. |
 | temperature | C | Temperatur sistem; fallback temperatur disk maksimum. |
 | system_uptime | seconds | sysUpTime TimeTicks dibagi 100. |
 | snmp_reachable | bool | 1 jika scrape exporter berhasil, 0 jika gagal. |

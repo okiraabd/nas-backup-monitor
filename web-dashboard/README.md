@@ -22,17 +22,22 @@ Untuk gambaran sistem dan cara menjalankan seluruh stack, lihat
 |---|---|---|
 | /login | Login akun API. | Public |
 | /dashboard | Ringkasan backup, monitoring, failed logs, dan tren aktivitas. | User terautentikasi; API membatasi data ke admin/operator. |
-| /dashboard/logs | Daftar backup log dengan filter dan pagination. | Admin/operator melalui API. |
-| /dashboard/logs/:id | Detail log dan acknowledge FAILED. | Admin/operator melalui API. |
+| /dashboard/logs | Daftar backup log dengan filter, pagination, auto refresh, dan hapus admin-only. | Admin/operator melalui API; hapus hanya admin. |
+| /dashboard/logs/:id | Detail log, acknowledge FAILED, dan hapus admin-only. | Admin/operator melalui API; hapus hanya admin. |
 | /dashboard/monitor/nas | Snapshot dan history metric NAS. | Admin/operator melalui API. |
 | /dashboard/monitor/ceph | Snapshot dan history metric Ceph. | Admin/operator melalui API. |
 | /dashboard/monitor/collector | Status run dan request Run once. | Admin/operator melalui API. |
-| /dashboard/reports | Generate, download, dan hapus report menurut role. | Admin/operator; hapus hanya admin. |
+| /dashboard/reports | Generate, download, pencarian, dan hapus report menurut role. | Admin/operator; hapus hanya admin. |
 | /dashboard/users | Manajemen user dan rotasi machine account. | Admin. |
 
 Sidebar menyembunyikan menu Users untuk non-admin. Otorisasi yang sebenarnya
 tetap dilakukan server. Machine account service/collector dapat memperoleh
 token API, tetapi endpoint dashboard akan mengembalikan 403 untuk mereka.
+
+Aksi destruktif hanya ditampilkan untuk admin. Backup log dapat dihapus per
+item, pilihan banyak item, atau periode tanggal WIB yang dikonversi frontend ke
+rentang UTC. Report dapat dihapus per item, pilihan banyak item, atau periode
+tanggal generate; API menginterpretasikan periode report menurut APP_TIMEZONE.
 
 ## Teknologi
 
@@ -190,6 +195,8 @@ Lakukan smoke test manual terhadap:
 - filter tanggal/log, acknowledge failure, dan pagination;
 - halaman NAS, Ceph, serta status collector;
 - generate/download report;
+- delete backup log/report sebagai admin, termasuk pilihan banyak item dan
+  periode;
 - pembatasan menu dan endpoint Users untuk non-admin;
 - reload URL dalam (misalnya /dashboard/logs) untuk memastikan fallback Nginx
   mengembalikan index.html.

@@ -15,6 +15,8 @@ Dokumentasi sistem dan cara menjalankan stack ada di
 - Menerima metric batch serta status siklus dari collector.
 - Menyajikan log, status monitoring, history, dan tren untuk dashboard.
 - Menghasilkan, menyimpan metadata, mengunduh, dan menghapus PDF report.
+- Menyediakan operasi admin untuk pembersihan backup log/report dan manajemen
+  akun.
 - Menjalankan migrasi Alembic ketika container dimulai.
 
 ~~~text
@@ -311,7 +313,7 @@ menaikkan token_version pada operasi berikut:
 | PATCH /api/users/{id}/password | Password diubah dan seluruh token user menjadi tidak valid. |
 | POST /api/users/{id}/rotate-token | Password baru untuk service/collector dibuat; seluruh token lama invalid. |
 | PATCH /api/users/{id} dengan is_active=false | User dinonaktifkan dan seluruh token lama invalid. |
-| DELETE /api/users/{id} | Soft-delete/nonaktifkan akun serta invalidate seluruh token lama. |
+| DELETE /api/users/{id} | User dihapus permanen bila tidak punya data terkait, atau dinonaktifkan dan token lama invalid bila data historis perlu dipertahankan. |
 
 Tidak ada endpoint khusus logout everywhere. Admin dapat memakai reset password
 atau rotate-token untuk machine account bila perlu memutus seluruh sesi user.
@@ -392,6 +394,7 @@ Tabel berikut adalah ringkasan operasional yang sesuai implementasi saat ini.
 | GET /api/logs | admin, operator | List berhalaman dan filter. |
 | GET /api/logs/{log_id} | admin, operator | Detail log, termasuk raw payload. |
 | PATCH /api/logs/{log_id}/acknowledge | admin, operator | Acknowledge log FAILED dengan remark wajib. |
+| DELETE /api/logs/bulk | admin | Menghapus permanen log berdasarkan ID, periode, atau gabungan keduanya. |
 
 POST /api/logs/ingest mengembalikan 201 untuk snapshot baru dan 200 untuk retry
 snapshot yang sudah tersimpan. Idempotensi berlaku hanya ketika snapshot_id
@@ -402,6 +405,13 @@ GET /api/logs menerima filter nas_id, status, job_name, date_from, date_to,
 acknowledged, page, dan page_size. page_size berada pada rentang 1 sampai 100.
 Hanya log berstatus FAILED yang dapat di-acknowledge.
 
+DELETE /api/logs/bulk menerima body log_ids, date_from, dan/atau date_to.
+Minimal satu filter wajib ada. Jika ID dan periode dikirim bersamaan, API
+menghapus log yang cocok dengan salah satu kondisi tersebut. date_from dan
+date_to adalah datetime UTC; dashboard mengubah input tanggal WIB menjadi
+rentang UTC sebelum memanggil endpoint ini. Operasi ini permanen dan tidak
+menghapus file PDF report yang sudah pernah dibuat dari log tersebut.
+
 ### Monitoring dan collector
 
 | Method dan path | Role | Keterangan |
@@ -411,9 +421,9 @@ Hanya log berstatus FAILED yang dapat di-acknowledge.
 | GET /api/monitor/activity-trend | admin, operator | Tren log SUCCESS/FAILED tujuh hari kalender lokal terakhir. |
 | GET /api/monitor/nas | admin, operator | Snapshot metric terbaru semua NAS. |
 | GET /api/monitor/nas/{nas_id} | admin, operator | Snapshot terbaru satu NAS. |
-| GET /api/monitor/nas/{nas_id}/history | admin, operator | History satu metric NAS; parameter metric dan limit. |
+| GET /api/monitor/nas/{nas_id}/history | admin, operator | History satu metric NAS; parameter metric, limit, hours, date_from, dan date_to. |
 | GET /api/monitor/ceph | admin, operator | Snapshot terbaru Ceph. |
-| GET /api/monitor/ceph/history | admin, operator | History metric Ceph; metric, limit, dan source_id opsional. |
+| GET /api/monitor/ceph/history | admin, operator | History metric Ceph; metric, limit, hours, date_from, date_to, dan source_id opsional. |
 | GET /api/monitor/collector/status | admin, operator, collector | Hasil collector run terbaru. |
 | POST /api/monitor/collector/run | collector | Mencatat satu collector run selesai. |
 | POST /api/monitor/collector/run-once | admin, operator | Menambahkan marker PENDING, bukan mengeksekusi process collector langsung. |
@@ -438,16 +448,22 @@ Freshness dihitung di server dari metric terbaru per sumber:
 | POST /api/reports/generate | admin, operator | Membuat PDF untuk periode tanggal lokal. |
 | GET /api/reports/{report_id}/download | admin, operator | Mengunduh PDF tersimpan. |
 | DELETE /api/reports/{report_id} | admin | Menghapus file dan metadata report. |
-| GET /api/users | admin | Daftar user. |
+| DELETE /api/reports | admin | Bulk delete report berdasarkan ID, tanggal generate, atau gabungan keduanya. |
+| GET /api/users | admin | Daftar user aktif; include_inactive=true menampilkan user nonaktif. |
 | POST /api/users | admin | Membuat user. |
 | GET /api/users/{user_id} | admin | Detail user. |
 | PATCH /api/users/{user_id} | admin | Ubah display name, role, atau aktif/nonaktif. |
-| DELETE /api/users/{user_id} | admin | Soft-delete: menonaktifkan akun. |
+| DELETE /api/users/{user_id} | admin | Smart delete; hard-delete bila aman, soft-delete bila ada data terkait, force=true untuk hard-delete dengan FK dibuat NULL. |
 | PATCH /api/users/{user_id}/password | admin | Set password baru dan invalidate token lama. |
 | POST /api/users/{user_id}/rotate-token | admin | Buat password baru sekali tampil untuk role service/collector. |
 
 API melindungi dari hilangnya akses admin terakhir dan mencegah admin
-menonaktifkan/menghapus akses adminnya sendiri.
+menonaktifkan/menghapus akses adminnya sendiri. Hapus report bulk menerima
+report_ids, date_from, dan/atau date_to; tanggal periode diinterpretasikan
+sebagai hari lokal menurut APP_TIMEZONE. Hapus user bersifat hard-delete hanya
+bila tidak ada log, metric, atau report yang mereferensikan user tersebut.
+Tanpa force=true, user yang memiliki data historis akan dinonaktifkan agar
+riwayat tetap utuh.
 
 ## Kontrak waktu dan data
 
@@ -460,7 +476,8 @@ Semua timestamp masuk harus menyertakan offset zona waktu:
 
 Timestamp disimpan sebagai instant UTC. Untuk request report, date_from dan
 date_to adalah tanggal tanpa waktu dan meliputi satu hari penuh menurut
-APP_TIMEZONE. Filter log menerima timestamp. PDF report memuat:
+APP_TIMEZONE. Filter log dan bulk delete log menerima timestamp. Bulk delete
+report memakai tanggal lokal seperti request report. PDF report memuat:
 
 - ringkasan SUCCESS/FAILED dan FAILED yang belum di-acknowledge;
 - daftar backup log pada periode terpilih;

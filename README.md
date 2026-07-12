@@ -162,7 +162,7 @@ Peran menentukan otorisasi API, bukan hanya menu dashboard.
 | Membaca dashboard, log, dan monitoring | ✓ | ✓ | – | – |
 | Acknowledge backup FAILED | ✓ | ✓ | – | – |
 | Membuat / mengunduh report | ✓ | ✓ | – | – |
-| Menghapus report dan mengelola user | ✓ | – | – | – |
+| Menghapus backup log/report dan mengelola user | ✓ | – | – | – |
 | Mengirim backup log | – | – | ✓ | – |
 | Mengirim metrik dan hasil run collector | – | – | – | ✓ |
 | Membaca status collector | ✓ | ✓ | – | ✓ |
@@ -306,6 +306,11 @@ dengan kebijakan organisasi, dan cadangkan volume reports jika PDF harus
 dipertahankan. Uji proses restore pada lingkungan terpisah. Jangan gunakan
 docker compose down -v kecuali memang ingin menghapus kedua volume tersebut.
 
+Admin dapat menghapus backup log dan report melalui dashboard/API, baik per
+item, pilihan banyak item, maupun periode. Operasi itu permanen pada database
+dan, untuk report, juga mencoba menghapus file PDF terkait. Ambil backup sebelum
+melakukan pembersihan massal pada data production.
+
 ### Upgrade
 
 ~~~bash
@@ -341,7 +346,9 @@ Setelah perubahan Dockerfile atau kode service, gunakan docker compose up -d
 
 - Tidak ada mekanisme retention atau agregasi metric history pada aplikasi.
   Tabel metrics akan terus bertambah; rencanakan retensi/arsip di tingkat
-  operasional sebelum production jangka panjang.
+  operasional sebelum production jangka panjang. Backup log dan report dapat
+  dihapus manual oleh admin, tetapi metric history belum memiliki endpoint
+  purge khusus.
 - Collector nyata melaporkan read_iops dan write_iops Ceph sebagai 0, karena
   endpoint Prometheus yang dibaca menyediakan counter dan proyek ini belum
   menghitung rate antar-sampel.

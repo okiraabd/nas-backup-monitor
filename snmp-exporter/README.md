@@ -146,7 +146,11 @@ Langkah tingkat tinggi:
 Contoh bentuk perintah generator:
 
 ~~~bash
-./generator generate +  -m ./mibs/synology +  -m ./mibs/wd +  -g ./generator.yml +  -o ./snmp.yml
+./generator generate \
+  -m ./mibs/synology \
+  -m ./mibs/wd \
+  -g ./generator.yml \
+  -o ./snmp.yml
 ~~~
 
 Ikuti dokumentasi generator yang sesuai dengan versi exporter Anda untuk flag
