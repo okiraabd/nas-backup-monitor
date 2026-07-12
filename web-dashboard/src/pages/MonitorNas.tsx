@@ -34,7 +34,7 @@ const TIMEFRAME_OPTIONS = [
 
 export function MonitorNas() {
   const [selectedNas, setSelectedNas] = useState<string | null>(null);
-  const [autoRefresh, setAutoRefresh] = useState<number>(0);
+  const [autoRefresh, setAutoRefresh] = useState<number>(10000);
   const queryClient = useQueryClient();
 
   const { data: nasList, isLoading: loadingList, dataUpdatedAt } = useQuery({

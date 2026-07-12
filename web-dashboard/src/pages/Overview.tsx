@@ -13,7 +13,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 export function Overview() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [autoRefresh, setAutoRefresh] = useState("0");
+  const [autoRefresh, setAutoRefresh] = useState("10");
   const refetchInterval = autoRefresh !== "0" ? parseInt(autoRefresh) * 1000 : false;
 
   const summaryQuery = useQuery({
