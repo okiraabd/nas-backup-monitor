@@ -8,8 +8,8 @@ import { Button } from "@/components/ui/button";
 import { formatBytes } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -140,7 +140,7 @@ export function MonitorNas() {
 }
 
 function NasDetailView({ nasId, autoRefresh }: { nasId: string, autoRefresh: number }) {
-  const [hours, setHours] = useState(24);
+  const [hours, setHours] = useState(1);
 
   const { data: snapshot, isLoading: loadingSnap } = useQuery({
     queryKey: ["nas", nasId, "snapshot"],
@@ -219,8 +219,8 @@ function NasDetailView({ nasId, autoRefresh }: { nasId: string, autoRefresh: num
         </Card>
       </div>
 
-      {/* Side-by-Side Charts */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      {/* Full-Width Charts */}
+      <div className="grid grid-cols-1 gap-6">
         <MetricChart nasId={nasId} metric="cpu_usage" hours={hours} setHours={setHours} autoRefresh={autoRefresh} />
         <MetricChart nasId={nasId} metric="ram_used_pct" hours={hours} setHours={setHours} autoRefresh={autoRefresh} />
       </div>
@@ -283,7 +283,13 @@ function MetricChart({ nasId, metric, hours, setHours, autoRefresh }: { nasId: s
         ) : (
           <div className="h-[250px] w-full mt-4">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: -20 }}>
+              <AreaChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: -20 }}>
+                <defs>
+                  <linearGradient id={`colorValue-${metric}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
                 <XAxis 
                   dataKey="time" 
@@ -306,15 +312,16 @@ function MetricChart({ nasId, metric, hours, setHours, autoRefresh }: { nasId: s
                   labelFormatter={(label, entries) => entries[0]?.payload.fullDate || label}
                   formatter={(value: any) => [`${value}${isPercentage ? '%' : ''}`, title]}
                 />
-                <Line 
+                <Area 
                   type="monotone" 
                   dataKey="value" 
                   stroke="hsl(var(--primary))" 
+                  fillOpacity={1}
+                  fill={`url(#colorValue-${metric})`}
                   strokeWidth={2} 
-                  dot={false}
                   activeDot={{ r: 6, fill: "hsl(var(--primary))", stroke: "hsl(var(--background))", strokeWidth: 2 }}
                 />
-              </LineChart>
+              </AreaChart>
             </ResponsiveContainer>
           </div>
         )}

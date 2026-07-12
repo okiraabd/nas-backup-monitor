@@ -19,7 +19,7 @@ import {
 
 export function MonitorCeph() {
   const [metric] = useState("storage_used_pct");
-  const [hours, setHours] = useState(24);
+  const [hours, setHours] = useState(1);
   const [autoRefresh, setAutoRefresh] = useState<number>(0);
   const queryClient = useQueryClient();
 
