@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Database, CheckCircle2, XCircle, AlertCircle, HardDrive, Activity } from "lucide-react";
+import { useQuery, useQueryClient, useIsFetching } from "@tanstack/react-query";
+import { Database, CheckCircle2, XCircle, AlertCircle, HardDrive, Activity, Clock, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatDateTimeWib, formatTimeWib } from "@/lib/datetime";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { formatBytes } from "@/lib/utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AreaChart,
   Area,
@@ -19,6 +20,8 @@ import {
 export function MonitorCeph() {
   const [metric] = useState("storage_used_pct");
   const [hours, setHours] = useState(24);
+  const [autoRefresh, setAutoRefresh] = useState<number>(0);
+  const queryClient = useQueryClient();
 
   const TIMEFRAME_OPTIONS = [
     { label: "1h", value: 1 },
@@ -29,7 +32,7 @@ export function MonitorCeph() {
     { label: "30d", value: 720 },
   ];
 
-  const { data: snapshot, isLoading: loadingSnap } = useQuery({
+  const { data: snapshot, isLoading: loadingSnap, dataUpdatedAt } = useQuery({
     queryKey: ["ceph", "snapshot"],
     queryFn: async () => {
       try {
@@ -40,6 +43,7 @@ export function MonitorCeph() {
         throw err;
       }
     },
+    refetchInterval: autoRefresh === 0 ? false : autoRefresh,
   });
 
   const { data: history, isLoading: loadingHist } = useQuery({
@@ -53,7 +57,14 @@ export function MonitorCeph() {
         throw err;
       }
     },
+    refetchInterval: autoRefresh === 0 ? false : autoRefresh,
   });
+
+  const isFetching = useIsFetching({ queryKey: ["ceph"] }) > 0;
+
+  const handleRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: ["ceph"] });
+  };
 
   const getMetric = (name: string) => {
     if (!snapshot?.metrics || !snapshot.metrics[name]) return null;
@@ -76,11 +87,39 @@ export function MonitorCeph() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Ceph Storage</h2>
-        <p className="text-muted-foreground mt-2">
-          Monitor your object storage backend health and utilization.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Ceph Storage</h2>
+          <p className="text-muted-foreground mt-2">
+            Monitor your object storage backend health and utilization.
+          </p>
+        </div>
+        <div className="flex items-center gap-4 text-sm text-muted-foreground hidden lg:flex">
+          {dataUpdatedAt > 0 && (
+            <span className="flex items-center gap-1">
+              <Clock className="w-3 h-3" /> 
+              Last updated: {new Date(dataUpdatedAt).toLocaleTimeString()}
+            </span>
+          )}
+          <div className="flex items-center gap-2 border-l pl-4 border-border">
+            <span className="text-xs">Auto Refresh:</span>
+            <Select value={autoRefresh.toString()} onValueChange={(v) => setAutoRefresh(Number(v))}>
+              <SelectTrigger className="h-8 w-[80px] text-xs bg-background">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="0">Off</SelectItem>
+                <SelectItem value="10000">10s</SelectItem>
+                <SelectItem value="30000">30s</SelectItem>
+                <SelectItem value="60000">1m</SelectItem>
+                <SelectItem value="300000">5m</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button variant="outline" size="icon" className="h-8 w-8 bg-background" onClick={handleRefresh} disabled={isFetching}>
+              <RefreshCw className={`h-3 w-3 ${isFetching ? "animate-spin" : ""}`} />
+            </Button>
+          </div>
+        </div>
       </div>
 
       {!loadingSnap && !snapshot && (
@@ -117,9 +156,6 @@ export function MonitorCeph() {
                     )}
                   </div>
                 )}
-                <p className="text-xs text-muted-foreground mt-2">
-                  Last updated: {formatTimeWib(snapshot?.last_collected_at, { seconds: true, suffix: true })}
-                </p>
                 {healthDetail && healthDetail !== "None" && (
                   <p className="text-xs text-rose-500 mt-2 font-medium bg-rose-500/10 p-2 rounded break-all">
                     Detail: {healthDetail}

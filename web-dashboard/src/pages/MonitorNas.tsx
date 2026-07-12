@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Server, Activity, Cpu, MemoryStick, HardDrive } from "lucide-react";
+import { useQuery, useQueryClient, useIsFetching } from "@tanstack/react-query";
+import { Server, Activity, Cpu, MemoryStick, HardDrive, Clock, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatDateTimeWib, formatTimeWib } from "@/lib/datetime";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -34,14 +34,26 @@ const TIMEFRAME_OPTIONS = [
 
 export function MonitorNas() {
   const [selectedNas, setSelectedNas] = useState<string | null>(null);
+  const [autoRefresh, setAutoRefresh] = useState<number>(0);
+  const queryClient = useQueryClient();
 
-  const { data: nasList, isLoading: loadingList } = useQuery({
+  const { data: nasList, isLoading: loadingList, dataUpdatedAt } = useQuery({
     queryKey: ["nas-list"],
     queryFn: async () => {
       const res = await api.get("/monitor/nas");
       return res.data;
     },
+    refetchInterval: autoRefresh === 0 ? false : autoRefresh,
   });
+
+  const fetchingNas = useIsFetching({ queryKey: ["nas"] });
+  const fetchingList = useIsFetching({ queryKey: ["nas-list"] });
+  const isFetching = fetchingNas > 0 || fetchingList > 0;
+
+  const handleRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: ["nas"] });
+    queryClient.invalidateQueries({ queryKey: ["nas-list"] });
+  };
 
   // Auto-select first NAS
   useEffect(() => {
@@ -60,6 +72,32 @@ export function MonitorNas() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4 mr-2 text-sm text-muted-foreground hidden lg:flex">
+            {dataUpdatedAt > 0 && (
+              <span className="flex items-center gap-1">
+                <Clock className="w-3 h-3" /> 
+                Last updated: {new Date(dataUpdatedAt).toLocaleTimeString()}
+              </span>
+            )}
+            <div className="flex items-center gap-2 border-l pl-4 border-border">
+              <span className="text-xs">Auto Refresh:</span>
+              <Select value={autoRefresh.toString()} onValueChange={(v) => setAutoRefresh(Number(v))}>
+                <SelectTrigger className="h-8 w-[80px] text-xs bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">Off</SelectItem>
+                  <SelectItem value="10000">10s</SelectItem>
+                  <SelectItem value="30000">30s</SelectItem>
+                  <SelectItem value="60000">1m</SelectItem>
+                  <SelectItem value="300000">5m</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button variant="outline" size="icon" className="h-8 w-8 bg-background" onClick={handleRefresh} disabled={isFetching}>
+                <RefreshCw className={`h-3 w-3 ${isFetching ? "animate-spin" : ""}`} />
+              </Button>
+            </div>
+          </div>
           <Select 
             value={selectedNas || ""} 
             onValueChange={setSelectedNas}
@@ -95,13 +133,13 @@ export function MonitorNas() {
           </CardContent>
         </Card>
       ) : (
-        <NasDetailView nasId={selectedNas} />
+        <NasDetailView nasId={selectedNas} autoRefresh={autoRefresh} />
       )}
     </div>
   );
 }
 
-function NasDetailView({ nasId }: { nasId: string }) {
+function NasDetailView({ nasId, autoRefresh }: { nasId: string, autoRefresh: number }) {
   const [hours, setHours] = useState(24);
 
   const { data: snapshot, isLoading: loadingSnap } = useQuery({
@@ -110,6 +148,7 @@ function NasDetailView({ nasId }: { nasId: string }) {
       const res = await api.get(`/monitor/nas/${nasId}`);
       return res.data;
     },
+    refetchInterval: autoRefresh === 0 ? false : autoRefresh,
   });
 
   const getMetricValue = (name: string) => {
@@ -182,20 +221,21 @@ function NasDetailView({ nasId }: { nasId: string }) {
 
       {/* Side-by-Side Charts */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <MetricChart nasId={nasId} metric="cpu_usage" hours={hours} setHours={setHours} />
-        <MetricChart nasId={nasId} metric="ram_used_pct" hours={hours} setHours={setHours} />
+        <MetricChart nasId={nasId} metric="cpu_usage" hours={hours} setHours={setHours} autoRefresh={autoRefresh} />
+        <MetricChart nasId={nasId} metric="ram_used_pct" hours={hours} setHours={setHours} autoRefresh={autoRefresh} />
       </div>
     </div>
   );
 }
 
-function MetricChart({ nasId, metric, hours, setHours }: { nasId: string, metric: string, hours: number, setHours: (h: number) => void }) {
+function MetricChart({ nasId, metric, hours, setHours, autoRefresh }: { nasId: string, metric: string, hours: number, setHours: (h: number) => void, autoRefresh: number }) {
   const { data: history, isLoading: loadingHist } = useQuery({
     queryKey: ["nas", nasId, "history", metric, hours],
     queryFn: async () => {
       const res = await api.get(`/monitor/nas/${nasId}/history`, { params: { metric, hours } });
       return res.data;
     },
+    refetchInterval: autoRefresh === 0 ? false : autoRefresh,
   });
 
   const chartData = history?.points?.map((p: any) => ({
