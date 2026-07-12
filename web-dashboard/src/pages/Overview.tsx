@@ -259,8 +259,9 @@ export function Overview() {
       </div>
 
       {/* Recent Failed Backups Section */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7 mt-4">
+        {/* Recent Failed Backups */}
+        <Card className="col-span-3">
           <CardHeader>
             <CardTitle>Recent Failed Backups</CardTitle>
           </CardHeader>
@@ -311,7 +312,7 @@ export function Overview() {
         </Card>
         
         {/* System Activity Chart */}
-        <Card className="col-span-3">
+        <Card className="col-span-4">
           <CardHeader className="pb-2">
             <CardTitle>Backup Job Trends</CardTitle>
             <CardDescription>Click on a bar to view detailed logs for that day</CardDescription>
