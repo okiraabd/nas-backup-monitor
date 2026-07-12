@@ -3,8 +3,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { Server, Database, AlertCircle, CheckCircle2, XCircle, RefreshCw, Clock } from "lucide-react";
 import { api } from "@/lib/api";
-import { formatDateTimeWib } from "@/lib/datetime";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+import { formatDistanceToNow } from "date-fns";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -24,7 +25,7 @@ export function Overview() {
     },
     refetchInterval,
   });
-  const { data: summary, isLoading: loadingSummary } = summaryQuery;
+  const { data: summary, isLoading: loadingSummary, isError: summaryError } = summaryQuery;
 
   const logsQuery = useQuery({
     queryKey: ["logs", "failed-recent"],
@@ -36,7 +37,7 @@ export function Overview() {
     },
     refetchInterval,
   });
-  const { data: logsData, isLoading: loadingLogs } = logsQuery;
+  const { data: logsData, isLoading: loadingLogs, isError: logsError } = logsQuery;
 
   const activityQuery = useQuery({
     queryKey: ["monitor-activity"],
@@ -60,7 +61,7 @@ export function Overview() {
     },
     refetchInterval,
   });
-  const { data: activityData, isLoading: loadingActivity } = activityQuery;
+  const { data: activityData, isLoading: loadingActivity, isError: activityError } = activityQuery;
 
   const isRefetching =
     summaryQuery.isFetching || logsQuery.isFetching || activityQuery.isFetching;
@@ -124,7 +125,9 @@ export function Overview() {
             <Server className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            {loadingSummary ? (
+            {summaryError ? (
+              <div className="flex items-center text-sm text-destructive gap-2 h-8"><AlertCircle className="h-4 w-4" /> Failed to load</div>
+            ) : loadingSummary ? (
               <div className="h-8 animate-pulse bg-muted rounded" />
             ) : (
               <>
@@ -144,7 +147,9 @@ export function Overview() {
             <ActivityIcon />
           </CardHeader>
           <CardContent>
-            {loadingSummary ? (
+            {summaryError ? (
+              <div className="flex items-center text-sm text-destructive gap-2 h-8"><AlertCircle className="h-4 w-4" /> Failed to load</div>
+            ) : loadingSummary ? (
               <div className="h-8 animate-pulse bg-muted rounded" />
             ) : (
               <div className="flex gap-2 text-sm mt-1">
@@ -169,7 +174,9 @@ export function Overview() {
             <Database className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            {loadingSummary ? (
+            {summaryError ? (
+              <div className="flex items-center text-sm text-destructive gap-2 h-8"><AlertCircle className="h-4 w-4" /> Failed to load</div>
+            ) : loadingSummary ? (
               <div className="h-8 animate-pulse bg-muted rounded" />
             ) : (
               <>
@@ -203,7 +210,9 @@ export function Overview() {
             <Database className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            {loadingSummary ? (
+            {summaryError ? (
+              <div className="flex items-center text-sm text-destructive gap-2 h-8"><AlertCircle className="h-4 w-4" /> Failed to load</div>
+            ) : loadingSummary ? (
               <div className="h-8 animate-pulse bg-muted rounded" />
             ) : (
               <>
@@ -216,8 +225,8 @@ export function Overview() {
                 {summary?.storage_used_pct !== null && summary?.storage_used_pct !== undefined && (
                   <div className="w-full bg-muted rounded-full h-2 mt-2 overflow-hidden">
                     <div 
-                      className={`h-full ${summary.storage_used_pct > 80 ? 'bg-destructive' : 'bg-primary'}`} 
-                      style={{ width: `${Math.min(100, Math.max(0, summary.storage_used_pct))}%` }}
+                      className={`h-full ${summary.storage_used_pct >= 85 ? 'bg-destructive' : summary.storage_used_pct >= 70 ? 'bg-amber-500' : 'bg-primary'}`} 
+                      style={{ width: `${Math.min(100, Math.max(0, summary.storage_used_pct))}%`, transition: 'width 0.5s ease-in-out' }}
                     />
                   </div>
                 )}
@@ -234,7 +243,12 @@ export function Overview() {
             <CardTitle>Recent Failed Backups</CardTitle>
           </CardHeader>
           <CardContent>
-            {loadingLogs ? (
+            {logsError ? (
+              <div className="text-center p-6 text-destructive border rounded-md border-dashed flex flex-col items-center gap-2">
+                <AlertCircle className="h-6 w-6 mb-1" />
+                <p>Failed to load recent backups.</p>
+              </div>
+            ) : loadingLogs ? (
               <div className="space-y-2">
                 {[...Array(3)].map((_, i) => (
                   <div key={i} className="h-12 animate-pulse bg-muted rounded" />
@@ -258,7 +272,7 @@ export function Overview() {
                           )}
                         </div>
                         <div className="text-sm text-muted-foreground mt-1">
-                          Job: {log.job_name} • {formatDateTimeWib(log.created_at)}
+                          Job: {log.job_name} • {formatDistanceToNow(new Date(log.created_at), { addSuffix: true })}
                         </div>
                         {log.message && (
                           <div className="text-sm text-destructive mt-1 font-mono break-all">
@@ -276,11 +290,16 @@ export function Overview() {
         
         {/* System Activity Chart */}
         <Card className="col-span-3">
-          <CardHeader>
+          <CardHeader className="pb-2">
             <CardTitle>System Activity</CardTitle>
+            <CardDescription>Click on a bar to view detailed logs for that day</CardDescription>
           </CardHeader>
           <CardContent>
-            {loadingActivity ? (
+            {activityError ? (
+              <div className="flex h-[250px] items-center justify-center border border-dashed rounded-md text-destructive">
+                <div className="flex flex-col items-center gap-2"><AlertCircle className="h-6 w-6" /> <p>Failed to load chart data.</p></div>
+              </div>
+            ) : loadingActivity ? (
               <div className="flex h-[250px] items-center justify-center border border-dashed rounded-md text-muted-foreground">
                 <div className="animate-pulse">Loading Chart...</div>
               </div>
