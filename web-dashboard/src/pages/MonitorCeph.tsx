@@ -151,7 +151,7 @@ export function MonitorCeph() {
               </CardContent>
             </Card>
 
-            <Card className="cursor-pointer border-primary shadow-sm flex flex-col justify-between">
+            <Card className="flex flex-col justify-between">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Storage Used</CardTitle>
                 <HardDrive className="h-4 w-4 text-muted-foreground" />
@@ -207,8 +207,8 @@ export function MonitorCeph() {
             </CardHeader>
             <CardContent>
               {loadingHist ? (
-                <div className="h-[350px] flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                <div className="h-[350px] w-full p-4">
+                  <div className="h-full w-full animate-pulse bg-muted rounded-md"></div>
                 </div>
               ) : chartData.length === 0 ? (
                 <div className="h-[350px] flex items-center justify-center text-muted-foreground border border-dashed rounded-md">
@@ -245,6 +245,7 @@ export function MonitorCeph() {
                         labelStyle={{ color: "hsl(var(--foreground))", fontWeight: "bold" }}
                         itemStyle={{ color: "hsl(var(--primary))" }}
                         labelFormatter={(label, entries) => entries[0]?.payload.fullDate || label}
+                        formatter={(value: any) => [`${value}%`, "Storage Used"]}
                       />
                       <Area 
                         type="monotone" 
