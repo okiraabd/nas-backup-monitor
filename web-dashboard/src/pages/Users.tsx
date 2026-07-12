@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { api } from "@/lib/api";
 import { formatDateTimeWib } from "@/lib/datetime";
-import { Users as UsersIcon, ShieldAlert, Key, KeyRound, PlusCircle, Trash2, RotateCcw, Eye, EyeOff } from "lucide-react";
+import { Users as UsersIcon, ShieldAlert, Key, PlusCircle, Trash2, RotateCcw, Eye, EyeOff, LockKeyhole, Copy, Check } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -39,6 +39,10 @@ const formSchema = z.object({
   }
 });
 
+const resetPasswordSchema = z.object({
+  password: z.string().min(6, "Password must be at least 6 characters").max(128),
+});
+
 export function Users() {
   const { user: currentUser } = useAuth();
   const queryClient = useQueryClient();
@@ -49,9 +53,10 @@ export function Users() {
   const [deleteConfirm, setDeleteConfirm] = useState<{id: number, username: string} | null>(null);
   const [rotateConfirm, setRotateConfirm] = useState<{id: number, username: string} | null>(null);
   const [resetPasswordTarget, setResetPasswordTarget] = useState<{id: number, username: string, role: string} | null>(null);
-  const [newPassword, setNewPassword] = useState("");
   const [resetPasswordError, setResetPasswordError] = useState("");
   const [showInactive, setShowInactive] = useState(false);
+  const [reactivateConfirm, setReactivateConfirm] = useState<{id: number, username: string} | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const { data: users, isLoading } = useQuery({
     queryKey: ["users", showInactive],
@@ -68,6 +73,13 @@ export function Users() {
       username: "",
       display_name: "",
       role: "operator",
+      password: "",
+    },
+  });
+
+  const resetForm = useForm<z.infer<typeof resetPasswordSchema>>({
+    resolver: zodResolver(resetPasswordSchema),
+    defaultValues: {
       password: "",
     },
   });
@@ -145,13 +157,27 @@ export function Users() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       setResetPasswordTarget(null);
-      setNewPassword("");
+      resetForm.reset();
       setResetPasswordError("");
     },
     onError: (err: any) => {
-      setResetPasswordError(err.response?.data?.detail || "Gagal mereset password.");
+      setResetPasswordError(err.response?.data?.detail || "Failed to reset password.");
     },
   });
+
+  const onResetPasswordSubmit = (values: z.infer<typeof resetPasswordSchema>) => {
+    if (resetPasswordTarget) {
+      resetPasswordMutation.mutate({ id: resetPasswordTarget.id, password: values.password });
+    }
+  };
+
+  const handleCopyToken = () => {
+    if (tokenResult?.token) {
+      navigator.clipboard.writeText(tokenResult.token);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   if (currentUser?.role !== "admin") {
     return (
@@ -295,8 +321,19 @@ export function Users() {
               All existing active sessions/tokens for this user have been instantly revoked.
             </DialogDescription>
           </DialogHeader>
-          <div className="bg-muted p-4 rounded-md font-mono text-center text-lg select-all">
-            {tokenResult?.token}
+          <div className="flex items-center gap-2 mt-2">
+            <div className="bg-muted p-4 rounded-md font-mono text-center text-lg select-all flex-1">
+              {tokenResult?.token}
+            </div>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-14 w-14 shrink-0"
+              onClick={handleCopyToken}
+              title="Copy to clipboard"
+            >
+              {copied ? <Check className="h-6 w-6 text-emerald-500" /> : <Copy className="h-6 w-6" />}
+            </Button>
           </div>
           <DialogFooter>
             <Button onClick={() => setTokenResult(null)}>Close</Button>
@@ -307,9 +344,10 @@ export function Users() {
       <Dialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Confirm Delete User</DialogTitle>
+            <DialogTitle>Confirm Delete / Disable User</DialogTitle>
             <DialogDescription>
-              Are you sure you want to disable the account <strong>{deleteConfirm?.username}</strong>? This action cannot be undone.
+              Are you sure you want to delete or disable the account <strong>{deleteConfirm?.username}</strong>? 
+              If the user has related logs or metric data, the account will be safely disabled (marked inactive) instead of being fully deleted to preserve history.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -319,7 +357,7 @@ export function Users() {
                 deleteMutation.mutate(deleteConfirm.id);
               }
             }}>
-              {deleteMutation.isPending ? "Deleting..." : "Disable User"}
+              {deleteMutation.isPending ? "Processing..." : "Delete / Disable"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -348,13 +386,36 @@ export function Users() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={!!reactivateConfirm} onOpenChange={(open) => !open && setReactivateConfirm(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Reactivate User</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to reactivate the account <strong>{reactivateConfirm?.username}</strong>? 
+              They will be able to log in or authenticate again.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReactivateConfirm(null)}>Cancel</Button>
+            <Button disabled={reactivateMutation.isPending} onClick={() => {
+              if (reactivateConfirm) {
+                reactivateMutation.mutate(reactivateConfirm.id);
+                setReactivateConfirm(null);
+              }
+            }} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+              {reactivateMutation.isPending ? "Reactivating..." : "Reactivate User"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Reset Password Dialog for human accounts */}
       <Dialog
         open={!!resetPasswordTarget}
         onOpenChange={(open) => {
           if (!open) {
             setResetPasswordTarget(null);
-            setNewPassword("");
+            resetForm.reset();
             setResetPasswordError("");
           }
         }}
@@ -366,51 +427,52 @@ export function Users() {
               Set a new password for <strong>{resetPasswordTarget?.username}</strong>{" "}
               (<span className="capitalize">{resetPasswordTarget?.role}</span>).
               <br /><br />
-              <span className="text-destructive font-medium">Warning:</span> Semua sesi aktif user ini akan langsung dibatalkan dan harus login ulang.
+              <span className="text-destructive font-medium">Warning:</span> All active sessions for this user will be immediately revoked and they must log in again.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-3 py-2">
-            {resetPasswordError && (
-              <div className="text-sm text-destructive bg-destructive/10 rounded-md p-3">{resetPasswordError}</div>
-            )}
-            <div className="grid gap-1.5">
-              <label className="text-sm font-medium" htmlFor="new-password-input">Password Baru</label>
-              <Input
-                id="new-password-input"
-                type="password"
-                placeholder="Minimal 6 karakter"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && newPassword.length >= 6 && resetPasswordTarget) {
-                    resetPasswordMutation.mutate({ id: resetPasswordTarget.id, password: newPassword });
-                  }
-                }}
+          
+          <Form {...resetForm}>
+            <form onSubmit={resetForm.handleSubmit(onResetPasswordSubmit)} className="space-y-4 py-2">
+              {resetPasswordError && (
+                <div className="text-sm text-destructive bg-destructive/10 rounded-md p-3">{resetPasswordError}</div>
+              )}
+              
+              <FormField
+                control={resetForm.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>New Password</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="password" 
+                        placeholder="Minimum 6 characters" 
+                        {...field} 
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setResetPasswordTarget(null);
-                setNewPassword("");
-                setResetPasswordError("");
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              disabled={newPassword.length < 6 || resetPasswordMutation.isPending}
-              onClick={() => {
-                if (resetPasswordTarget) {
-                  resetPasswordMutation.mutate({ id: resetPasswordTarget.id, password: newPassword });
-                }
-              }}
-            >
-              {resetPasswordMutation.isPending ? "Saving..." : "Save Password"}
-            </Button>
-          </DialogFooter>
+              
+              <DialogFooter className="pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setResetPasswordTarget(null);
+                    resetForm.reset();
+                    setResetPasswordError("");
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={resetPasswordMutation.isPending}>
+                  {resetPasswordMutation.isPending ? "Saving..." : "Save Password"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
 
@@ -482,7 +544,7 @@ export function Users() {
                     <TableCell colSpan={6} className="h-32 text-center">
                       <div className="flex flex-col items-center justify-center text-muted-foreground">
                         <UsersIcon className="h-8 w-8 mb-2 opacity-20" />
-                        <p>No active users found matching criteria.</p>
+                        <p>No users found matching criteria.</p>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -498,7 +560,7 @@ export function Users() {
                       <TableCell className="font-medium font-mono">{user.username}</TableCell>
                       <TableCell>{user.display_name}</TableCell>
                       <TableCell>
-                        <Badge variant={user.role === 'admin' ? 'default' : user.role === 'service' ? 'secondary' : 'outline'}>
+                        <Badge variant={user.role === 'admin' ? 'default' : user.role === 'operator' ? 'secondary' : 'outline'}>
                           {user.role}
                         </Badge>
                       </TableCell>
@@ -532,7 +594,7 @@ export function Users() {
                             onClick={() => setResetPasswordTarget({ id: user.id, username: user.username, role: user.role })}
                             disabled={resetPasswordMutation.isPending}
                           >
-                            <KeyRound className="h-4 w-4" />
+                            <LockKeyhole className="h-4 w-4" />
                           </Button>
                         )}
                         {!user.is_active ? (
@@ -540,9 +602,8 @@ export function Users() {
                             variant="outline"
                             size="sm"
                             title="Reactivate User"
-                            onClick={() => reactivateMutation.mutate(user.id)}
+                            onClick={() => setReactivateConfirm({ id: user.id, username: user.username })}
                             disabled={reactivateMutation.isPending}
-                            className="text-emerald-600 border-emerald-600/30 hover:bg-emerald-50"
                           >
                             <RotateCcw className="h-4 w-4" />
                           </Button>
