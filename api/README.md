@@ -22,8 +22,8 @@ Dokumentasi sistem dan cara menjalankan stack ada di
 ~~~text
 Reporter NAS ── POST /api/logs/ingest ─┐
 Collector ──── POST /api/monitor/* ───┼──► FastAPI ───► PostgreSQL
-Dashboard ──── GET/POST/PATCH /api/* ─┘       │
-                                                └──► generated_reports/
+Dashboard ──── HTTP /api/* ───────────┘       │
+                                              └──► generated_reports/
 ~~~
 
 ## Teknologi dan struktur
@@ -311,7 +311,7 @@ menaikkan token_version pada operasi berikut:
 | Operasi | Dampak |
 |---|---|
 | PATCH /api/users/{id}/password | Password diubah dan seluruh token user menjadi tidak valid. |
-| POST /api/users/{id}/rotate-token | Password baru untuk service/collector dibuat; seluruh token lama invalid. |
+| POST /api/users/{id}/rotate-token | Password acak baru dibuat dan ditampilkan sekali; seluruh token lama user invalid. Umumnya dipakai untuk machine account. |
 | PATCH /api/users/{id} dengan is_active=false | User dinonaktifkan dan seluruh token lama invalid. |
 | DELETE /api/users/{id} | User dihapus permanen bila tidak punya data terkait, atau dinonaktifkan dan token lama invalid bila data historis perlu dipertahankan. |
 
@@ -377,14 +377,15 @@ proxy bila deployment membutuhkan kontrol tersebut.
 Swagger pada /docs adalah kontrak lengkap, termasuk schema dan contoh respons.
 Tabel berikut adalah ringkasan operasional yang sesuai implementasi saat ini.
 
-### Auth
+### Health dan auth
 
 | Method dan path | Role | Keterangan |
 |---|---|---|
+| GET /health | Public | Liveness probe public di luar prefix /api. |
 | POST /api/auth/login | Public | Tukar username/password menjadi access token dan profil user. |
 | GET /api/auth/me | Semua token aktif | Profil token saat ini. |
 | POST /api/auth/refresh | Semua token aktif | Revoke token lama dan mengeluarkan token baru. |
-| POST /api/auth/logout | Semua token aktif | Revoke token saat ini. |
+| POST /api/auth/logout | JWT valid secara kriptografis | Revoke token saat ini berdasarkan jti/exp. |
 
 ### Backup logs
 
@@ -422,7 +423,7 @@ menghapus file PDF report yang sudah pernah dibuat dari log tersebut.
 | GET /api/monitor/nas | admin, operator | Snapshot metric terbaru semua NAS. |
 | GET /api/monitor/nas/{nas_id} | admin, operator | Snapshot terbaru satu NAS. |
 | GET /api/monitor/nas/{nas_id}/history | admin, operator | History satu metric NAS; parameter metric, limit, hours, date_from, dan date_to. |
-| GET /api/monitor/ceph | admin, operator | Snapshot terbaru Ceph. |
+| GET /api/monitor/ceph | admin, operator | Snapshot terbaru Ceph; source_id opsional default ceph-cluster. |
 | GET /api/monitor/ceph/history | admin, operator | History metric Ceph; metric, limit, hours, date_from, date_to, dan source_id opsional. |
 | GET /api/monitor/collector/status | admin, operator, collector | Hasil collector run terbaru. |
 | POST /api/monitor/collector/run | collector | Mencatat satu collector run selesai. |
@@ -431,6 +432,11 @@ menghapus file PDF report yang sudah pernah dibuat dari log tersebut.
 Setiap metric dalam request ingest disimpan sebagai satu baris. Metric numeric
 menjadi metric_value dan metric string menjadi metric_text. Tidak ada
 deduplikasi atau retensi automatic untuk metric history.
+
+History endpoint memakai limit 1 sampai 500 ketika tidak ada filter waktu. Jika
+hours dikirim, API menghitung date_from sebagai waktu sekarang dikurangi N jam
+dan mengabaikan limit. date_from/date_to dapat dipakai untuk mengambil seluruh
+titik dalam rentang tertentu.
 
 Freshness dihitung di server dari metric terbaru per sumber:
 
@@ -455,15 +461,29 @@ Freshness dihitung di server dari metric terbaru per sumber:
 | PATCH /api/users/{user_id} | admin | Ubah display name, role, atau aktif/nonaktif. |
 | DELETE /api/users/{user_id} | admin | Smart delete; hard-delete bila aman, soft-delete bila ada data terkait, force=true untuk hard-delete dengan FK dibuat NULL. |
 | PATCH /api/users/{user_id}/password | admin | Set password baru dan invalidate token lama. |
-| POST /api/users/{user_id}/rotate-token | admin | Buat password baru sekali tampil untuk role service/collector. |
+| POST /api/users/{user_id}/rotate-token | admin | Buat password acak baru sekali tampil dan invalidate token lama; terutama untuk service/collector. |
 
 API melindungi dari hilangnya akses admin terakhir dan mencegah admin
-menonaktifkan/menghapus akses adminnya sendiri. Hapus report bulk menerima
-report_ids, date_from, dan/atau date_to; tanggal periode diinterpretasikan
-sebagai hari lokal menurut APP_TIMEZONE. Hapus user bersifat hard-delete hanya
-bila tidak ada log, metric, atau report yang mereferensikan user tersebut.
-Tanpa force=true, user yang memiliki data historis akan dinonaktifkan agar
-riwayat tetap utuh.
+menonaktifkan/menghapus akses adminnya sendiri.
+
+POST /api/reports/generate menerima date_from, date_to, nas_id opsional,
+custom_name opsional, dan sla_target 0 sampai 100 dengan default 99.5. custom_name
+dipakai sebagai prefix filename setelah karakter tidak aman disanitasi. GET
+/api/reports mengurutkan report terbaru lebih dulu.
+
+DELETE /api/reports/{report_id} dan DELETE /api/reports menghapus metadata
+database serta mencoba menghapus file PDF secara best-effort. Bulk delete report
+menerima report_ids, date_from, dan/atau date_to; minimal satu filter wajib ada.
+Jika ID dan periode dikirim bersamaan, API menghapus report yang cocok dengan
+salah satu kondisi tersebut. Tanggal periode diinterpretasikan sebagai hari
+lokal menurut APP_TIMEZONE.
+
+GET /api/users hanya menampilkan user aktif secara default; tambahkan
+include_inactive=true untuk melihat user nonaktif. Hapus user bersifat
+hard-delete hanya bila tidak ada log, metric, atau report yang mereferensikan
+user tersebut. Tanpa force=true, user yang memiliki data historis akan
+dinonaktifkan agar riwayat tetap utuh. Dengan force=true, relasi historis ke
+user dibuat NULL sebelum baris user dihapus permanen.
 
 ## Kontrak waktu dan data
 

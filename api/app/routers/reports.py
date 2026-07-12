@@ -23,7 +23,7 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 )
 def list_reports(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_operator_or_admin),
+    _current_user: User = Depends(require_operator_or_admin),
 ) -> list[Report]:
     """List generated reports (newest first). Role: admin/operator."""
     return db.scalars(select(Report).order_by(Report.generated_at.desc())).all()
@@ -41,6 +41,7 @@ def generate(
     current_user: User = Depends(require_operator_or_admin),
 ) -> Report:
     """Generate a PDF report for the given period. Role: admin/operator."""
+    # Report service handles timezone bounds, PDF rendering, and metadata storage.
     return generate_report(
         db,
         date_from=payload.date_from,
@@ -59,7 +60,7 @@ def generate(
 def download_report(
     report_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_operator_or_admin),
+    _current_user: User = Depends(require_operator_or_admin),
 ) -> FileResponse:
     """Download a report's PDF file. Role: admin/operator."""
     report = db.get(Report, report_id)
@@ -82,7 +83,7 @@ def download_report(
 def delete_report(
     report_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    _current_user: User = Depends(require_admin),
 ) -> None:
     """Delete a report record and its file. Role: admin."""
     report = db.get(Report, report_id)
@@ -106,7 +107,7 @@ def delete_report(
 def bulk_delete_reports(
     payload: ReportBulkDelete,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    _current_user: User = Depends(require_admin),
 ) -> BulkDeleteResponse:
     """Delete multiple reports and their files. Role: admin."""
     if not payload.report_ids and payload.date_from is None and payload.date_to is None:
@@ -126,6 +127,8 @@ def bulk_delete_reports(
     from app.config import settings
     tz = ZoneInfo(settings.app_timezone)
 
+    # Report bulk periods are local calendar days, unlike log bulk delete
+    # which receives explicit UTC datetimes.
     if payload.date_from:
         start_of_day = datetime.combine(payload.date_from, time.min, tzinfo=tz)
         date_conditions.append(Report.generated_at >= start_of_day)
@@ -137,6 +140,7 @@ def bulk_delete_reports(
         from sqlalchemy import and_
         if payload.report_ids:
             from sqlalchemy import or_
+            # ID selection and period selection are additive.
             conditions = [or_(Report.id.in_(payload.report_ids), and_(*date_conditions))]
         else:
             conditions = date_conditions

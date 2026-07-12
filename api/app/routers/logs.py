@@ -44,6 +44,8 @@ def ingest_log(
     Logs without a snapshot_id (for example, pre-snapshot failures) are always
     stored as separate events.
     """
+    # Snapshot-bearing results are idempotent; synthetic failures without
+    # snapshot_id intentionally remain event-based observations.
     if payload.snapshot_id is not None:
         existing = db.scalar(
             select(BackupLog).where(
@@ -127,7 +129,7 @@ def ingest_log(
 )
 def list_logs(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_operator_or_admin),
+    _current_user: User = Depends(require_operator_or_admin),
     nas_id: str | None = None,
     status_filter: str | None = Query(None, alias="status"),
     job_name: str | None = None,
@@ -138,6 +140,7 @@ def list_logs(
     page_size: int = Query(20, ge=1, le=100),
 ) -> PaginatedLogs:
     """List backup logs with filters + pagination. Role: admin/operator."""
+    # Build a narrow WHERE clause only from filters the caller supplied.
     conditions = []
     if nas_id:
         conditions.append(BackupLog.nas_id == nas_id)
@@ -181,7 +184,7 @@ def list_logs(
 def get_log(
     log_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_operator_or_admin),
+    _current_user: User = Depends(require_operator_or_admin),
 ) -> LogDetail:
     """Get a single backup log's full detail. Role: admin/operator."""
     log = db.get(BackupLog, log_id)
@@ -205,6 +208,7 @@ def acknowledge_log(
     log = db.get(BackupLog, log_id)
     if log is None:
         raise HTTPException(status_code=404, detail="Log not found")
+    # SUCCESS logs do not enter the review workflow.
     if log.status != STATUS_FAILED:
         raise HTTPException(
             status_code=400,
@@ -227,7 +231,7 @@ def acknowledge_log(
 def bulk_delete_logs(
     payload: BulkDeleteRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    _current_user: User = Depends(require_admin),
 ) -> BulkDeleteResponse:
     """Delete multiple backup logs at once. Admin only.
 
@@ -258,7 +262,7 @@ def bulk_delete_logs(
     if date_conditions:
         from sqlalchemy import and_
         if payload.log_ids:
-            # Combine: (id IN ...) OR (date range)
+            # Combining selected IDs and a period is additive: delete either set.
             from sqlalchemy import or_
             conditions = [or_(BackupLog.id.in_(payload.log_ids), and_(*date_conditions))]
         else:

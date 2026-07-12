@@ -49,6 +49,7 @@ def ingest_metrics(
     Each metric is stored as its own row (numeric -> metric_value,
     string -> metric_text).
     """
+    # Store samples independently so history queries can chart each metric name.
     stored = 0
     for item in payload.metrics:
         db.add(
@@ -75,9 +76,10 @@ def ingest_metrics(
 )
 def summary(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_operator_or_admin),
+    _current_user: User = Depends(require_operator_or_admin),
 ) -> MonitorSummary:
     """Aggregate NAS freshness counts + Ceph health. Role: admin/operator."""
+    # Summary is computed from the latest snapshot per source, not from cached rows.
     nas_ids = svc.list_source_ids(db, SOURCE_NAS)
     counts = {svc.STATUS_FRESH: 0, svc.STATUS_STALE: 0, svc.STATUS_OFFLINE: 0}
     for sid in nas_ids:
@@ -113,7 +115,7 @@ def summary(
 )
 def activity_trend(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_operator_or_admin),
+    _current_user: User = Depends(require_operator_or_admin),
 ) -> ActivityTrendResponse:
     """Get backup success/failure trend for the last 7 days. Role: admin/operator."""
     bind = db.get_bind()
@@ -159,7 +161,7 @@ def activity_trend(
 )
 def list_nas(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_operator_or_admin),
+    _current_user: User = Depends(require_operator_or_admin),
 ) -> NasListResponse:
     """List all NAS sources with latest snapshot + freshness. Role: admin/operator."""
     snaps = []
@@ -178,7 +180,7 @@ def list_nas(
 def get_nas(
     nas_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_operator_or_admin),
+    _current_user: User = Depends(require_operator_or_admin),
 ) -> SourceSnapshot:
     """Latest snapshot for one NAS. Role: admin/operator."""
     snap = svc.latest_snapshot(db, SOURCE_NAS, nas_id)
@@ -200,10 +202,12 @@ def get_nas_history(
     date_from: datetime | None = Query(None, description="Filter history from this datetime (UTC)."),
     date_to: datetime | None = Query(None, description="Filter history up to this datetime (UTC)."),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_operator_or_admin),
+    _current_user: User = Depends(require_operator_or_admin),
 ) -> MetricHistory:
     """History of one metric for one NAS. Role: admin/operator."""
     if hours is not None:
+        # Relative range is a convenience alias; explicit date_from/date_to still
+        # flow through to the shared history service.
         date_from = datetime.now(timezone.utc) - timedelta(hours=hours)
     points = svc.metric_history(db, SOURCE_NAS, nas_id, metric, limit, date_from=date_from, date_to=date_to)
     return MetricHistory(source_id=nas_id, metric_name=metric, points=points)
@@ -216,7 +220,7 @@ def get_nas_history(
 )
 def get_ceph(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_operator_or_admin),
+    _current_user: User = Depends(require_operator_or_admin),
     source_id: str = Query("ceph-cluster"),
 ) -> SourceSnapshot:
     """Latest snapshot for the Ceph cluster. Role: admin/operator."""
@@ -239,10 +243,11 @@ def get_ceph_history(
     date_to: datetime | None = Query(None, description="Filter history up to this datetime (UTC)."),
     source_id: str = Query("ceph-cluster"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_operator_or_admin),
+    _current_user: User = Depends(require_operator_or_admin),
 ) -> MetricHistory:
     """History of one metric for the Ceph cluster. Role: admin/operator."""
     if hours is not None:
+        # Keep Ceph history semantics identical to NAS history.
         date_from = datetime.now(timezone.utc) - timedelta(hours=hours)
     points = svc.metric_history(db, SOURCE_CEPH, source_id, metric, limit, date_from=date_from, date_to=date_to)
     return MetricHistory(source_id=source_id, metric_name=metric, points=points)
@@ -255,7 +260,7 @@ def get_ceph_history(
 )
 def collector_status(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin_operator_or_collector),
+    _current_user: User = Depends(require_admin_operator_or_collector),
 ) -> CollectorStatus:
     """Most recent collector run status. Role: admin/operator/collector."""
     run = db.scalar(select(CollectorRun).order_by(CollectorRun.created_at.desc()))
@@ -280,7 +285,7 @@ def collector_status(
 )
 def collector_run_once(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_operator_or_admin),
+    _current_user: User = Depends(require_operator_or_admin),
 ) -> CollectorStatus:
     """Record a manual collector trigger request. Role: admin/operator.
 
@@ -288,6 +293,7 @@ def collector_run_once(
     records the intent as a RUNNING collector_run so the dashboard can reflect
     that a run was requested. The real collector (stage 6) will update it.
     """
+    # The collector daemon watches for this PENDING marker during its wait loop.
     run = CollectorRun(
         started_at=datetime.now(timezone.utc),
         status="PENDING",
@@ -320,9 +326,10 @@ def collector_run_once(
 def collector_run_report(
     payload: CollectorRunRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_collector),
+    _current_user: User = Depends(require_collector),
 ) -> CollectorStatus:
     """Record a completed collector run. Role: collector."""
+    # CollectorRun is process-level status; this model currently has no user FK.
     run = CollectorRun(
         started_at=payload.started_at,
         finished_at=payload.finished_at,

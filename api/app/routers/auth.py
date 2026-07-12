@@ -28,6 +28,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 )
 def login(payload: LoginRequest, db: Session = Depends(get_db)) -> LoginResponse:
     """Exchange username/password for a JWT access token."""
+    # Auth service owns password verification and token creation details.
     try:
         user, token = authenticate(db, payload.username, payload.password)
     except AuthError as exc:
@@ -50,6 +51,7 @@ def logout(
     is rejected on every subsequent request even before it expires. The client
     should also discard the token from localStorage.
     """
+    # Logout only needs cryptographically valid JWT claims to record jti/exp.
     revoke_token(db, payload)
     return MessageResponse(message="Logged out. Token has been revoked.")
 
@@ -70,7 +72,7 @@ def me(current_user: User = Depends(get_current_user)) -> UserPublic:
     summary="Rotate the current JWT",
 )
 def refresh(
-    current_user: User = Depends(get_current_user),
+    _current_user: User = Depends(get_current_user),
     payload: dict = Depends(get_token_payload),
     db: Session = Depends(get_db),
 ) -> LoginResponse:
@@ -81,6 +83,8 @@ def refresh(
     token is revoked and a new short-lived token is returned. This lets clients
     keep a short access-token lifetime while staying logged in.
     """
+    # `_current_user` is intentionally unused; it forces full DB-backed checks
+    # before refresh_access_token rotates the presented JWT.
     try:
         user, token = refresh_access_token(db, payload)
     except AuthError as exc:

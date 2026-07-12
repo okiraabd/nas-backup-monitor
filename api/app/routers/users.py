@@ -68,10 +68,11 @@ def _user_has_related_data(db: Session, user_id: int) -> dict:
 )
 def list_users(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    _current_user: User = Depends(require_admin),
     include_inactive: bool = Query(False, description="Include inactive/disabled users"),
 ) -> list[User]:
     """List all users. Role: admin."""
+    # Default view hides disabled accounts; admins can opt into the full list.
     q = select(User).order_by(User.id)
     if not include_inactive:
         q = q.where(User.is_active.is_(True))
@@ -90,6 +91,7 @@ def create_user(
     current_user: User = Depends(require_admin),
 ) -> User:
     """Create a user. Role: admin."""
+    # Username is immutable after creation, so reject duplicates up front.
     exists = db.scalar(select(User).where(User.username == payload.username))
     if exists is not None:
         raise HTTPException(status_code=409, detail="Username already exists")
@@ -115,7 +117,7 @@ def create_user(
 def get_user(
     user_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    _current_user: User = Depends(require_admin),
 ) -> User:
     """Get a single user. Role: admin."""
     user = db.get(User, user_id)
@@ -140,6 +142,7 @@ def update_user(
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
 
+    # Prevent an admin from locking themselves or the system out of admin access.
     would_remove_own_admin = (
         user.id == current_user.id
         and user.role == ROLE_ADMIN
@@ -209,6 +212,8 @@ def delete_user(
 
     relation = _user_has_related_data(db, user_id)
 
+    # Preserve historical ownership by soft-deleting users that are referenced,
+    # unless the caller explicitly asks to detach those rows with force=true.
     if not relation["has_data"] or force:
         if relation["has_data"]:
             # Nullify FK references before hard delete
@@ -250,7 +255,7 @@ def reset_password(
     user_id: int,
     payload: PasswordUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    _current_user: User = Depends(require_admin),
 ) -> User:
     """Admin resets another user's password. Role: admin.
 
@@ -274,7 +279,7 @@ def reset_password(
 def rotate_token(
     user_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    _current_user: User = Depends(require_admin),
 ) -> RotateTokenResponse:
     """Generate a new password for an account (shown once).
 
@@ -283,6 +288,7 @@ def rotate_token(
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
+    # Plaintext is returned once; only the bcrypt hash is stored.
     new_password = generate_password()
     user.password_hash = hash_password(new_password)
     user.token_version += 1
