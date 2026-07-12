@@ -238,7 +238,7 @@ def build_report_pdf(
         story.append(pie_table)
         story.append(Spacer(1, 20))
 
-        story.append(Paragraph("<b>Backup Job Trends (Selected Period)</b>", h3))
+        story.append(Paragraph("<b>Backup Job Trends</b>", h3))
         story.append(Spacer(1, 4))
         bar_drawing = _build_daily_bar(activity_days or [])
         bar_table = Table([[bar_drawing]])
