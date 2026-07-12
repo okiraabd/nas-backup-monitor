@@ -477,9 +477,11 @@ export function Reports() {
                           />
                         </TableCell>
                       )}
-                      <TableCell className="font-medium flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-muted-foreground" />
-                        {report.filename}
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-muted-foreground" />
+                          <span>{report.filename}</span>
+                        </div>
                       </TableCell>
                       <TableCell>{report.date_from} to {report.date_to}</TableCell>
                       <TableCell>{report.nas_filter || <span className="text-muted-foreground">All NAS</span>}</TableCell>
