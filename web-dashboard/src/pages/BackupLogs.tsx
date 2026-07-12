@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { formatDateTimeWib, jakartaDateToUtcRange } from "@/lib/datetime";
+import { formatDateTimeWib, formatTimeWib, jakartaDateToUtcRange } from "@/lib/datetime";
 import { Link, useSearchParams } from "react-router-dom";
 import { Eye, CheckCircle2, XCircle, History, X, RefreshCw, Trash2 } from "lucide-react";
 
@@ -58,7 +58,7 @@ export function BackupLogs() {
     setPage(1);
   };
 
-  const { data, isLoading, isFetching } = useQuery({
+  const { data, isLoading, isFetching, dataUpdatedAt } = useQuery({
     queryKey: ["logs", page, status, nasId, jobName, dateFilter],
     queryFn: async () => {
       const params: any = { page, page_size: pageSize };
@@ -128,6 +128,11 @@ export function BackupLogs() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {dataUpdatedAt > 0 && (
+            <span className="text-xs text-muted-foreground mr-2">
+              Last updated: {formatTimeWib(dataUpdatedAt, { seconds: true })}
+            </span>
+          )}
           <Select value={autoRefresh} onValueChange={setAutoRefresh}>
             <SelectTrigger className="w-36">
               <SelectValue placeholder="Auto Refresh" />

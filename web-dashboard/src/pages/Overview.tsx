@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { Server, Database, AlertCircle, CheckCircle2, XCircle, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
-import { formatDateTimeWib } from "@/lib/datetime";
+import { formatDateTimeWib, formatTimeWib } from "@/lib/datetime";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -81,6 +81,11 @@ export function Overview() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {summaryQuery.dataUpdatedAt > 0 && (
+            <span className="text-xs text-muted-foreground mr-2">
+              Last updated: {formatTimeWib(summaryQuery.dataUpdatedAt, { seconds: true })}
+            </span>
+          )}
           <Select value={autoRefresh} onValueChange={setAutoRefresh}>
             <SelectTrigger className="w-36">
               <SelectValue placeholder="Auto Refresh" />
