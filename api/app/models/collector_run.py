@@ -6,8 +6,12 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
 
-# statuses: RUNNING / SUCCESS / PARTIAL_FAILED / FAILED
+# statuses: PENDING (run-once marker) / SUCCESS / PARTIAL_FAILED / FAILED
 # modes:    demo / real / hybrid
+
+# Statuses a collector may report when recording a finished run. The PENDING
+# marker is written server-side by the run-once endpoint, not reported here.
+VALID_COLLECTOR_STATUSES = {"SUCCESS", "PARTIAL_FAILED", "FAILED"}
 
 
 class CollectorRun(Base):

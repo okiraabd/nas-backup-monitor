@@ -19,7 +19,11 @@ class RevokedToken(Base):
     jti: Mapped[str] = mapped_column(String(64), primary_key=True)
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     # When the underlying token expires; rows past this are safe to purge.
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # Indexed (ix_revoked_tokens_expires_at) for the lazy cleanup query in
+    # auth_service.revoke_token(); the index is created by migration 0004.
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), index=True, nullable=False
+    )
     revoked_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

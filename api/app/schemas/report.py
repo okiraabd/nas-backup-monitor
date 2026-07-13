@@ -3,6 +3,8 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.schemas._shared import BulkDeleteResponse  # noqa: F401  (re-exported)
+
 
 class ReportGenerate(BaseModel):
     """Request body for generating a PDF backup report."""
@@ -39,6 +41,3 @@ class ReportBulkDelete(BaseModel):
     report_ids: list[int] = Field(default_factory=list, description="List of report IDs to delete.")
     date_from: date | None = Field(None, description="Delete reports generated on or after this date.")
     date_to: date | None = Field(None, description="Delete reports generated on or before this date.")
-
-class BulkDeleteResponse(BaseModel):
-    deleted_count: int = Field(..., description="Number of reports deleted.")

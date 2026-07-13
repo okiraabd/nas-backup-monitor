@@ -3,12 +3,9 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.models.collector_run import VALID_COLLECTOR_STATUSES
 from app.models.metric import SOURCE_CEPH, SOURCE_NAS
-
-
-def _is_aware(value: datetime) -> bool:
-    """Return True when a datetime carries an explicit timezone offset."""
-    return value.tzinfo is not None and value.utcoffset() is not None
+from app.schemas._shared import is_aware
 
 
 class MetricItem(BaseModel):
@@ -56,7 +53,7 @@ class MonitorIngest(BaseModel):
     @field_validator("collected_at")
     @classmethod
     def collected_at_must_be_timezone_aware(cls, value: datetime) -> datetime:
-        if not _is_aware(value):
+        if not is_aware(value):
             raise ValueError("collected_at must include timezone information")
         return value
 
@@ -147,7 +144,7 @@ class CollectorRunRequest(BaseModel):
     @field_validator("started_at", "finished_at")
     @classmethod
     def timestamps_must_be_timezone_aware(cls, value: datetime) -> datetime:
-        if not _is_aware(value):
+        if not is_aware(value):
             raise ValueError("datetime must include timezone information")
         return value
 
@@ -155,8 +152,10 @@ class CollectorRunRequest(BaseModel):
     @classmethod
     def status_must_be_valid(cls, value: str) -> str:
         status = value.strip().upper()
-        if status not in {"SUCCESS", "PARTIAL_FAILED", "FAILED"}:
-            raise ValueError("status must be SUCCESS, PARTIAL_FAILED, or FAILED")
+        if status not in VALID_COLLECTOR_STATUSES:
+            raise ValueError(
+                f"status must be one of {sorted(VALID_COLLECTOR_STATUSES)}"
+            )
         return status
 
     @model_validator(mode="after")

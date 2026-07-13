@@ -1,16 +1,20 @@
 """Reports router: list, generate (PDF), download, delete. Admin-only."""
 import os
+from datetime import datetime, time
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app.dependencies import require_admin, require_operator_or_admin
 from app.models.report import Report
 from app.models.user import User
 from app.schemas.report import ReportGenerate, ReportOut, ReportBulkDelete, BulkDeleteResponse
+from app.services.bulk_delete import build_bulk_delete_conditions
 from app.services.report_service import generate_report
 
 router = APIRouter(prefix="/reports", tags=["reports"])
@@ -116,34 +120,28 @@ def bulk_delete_reports(
             detail="Provide at least one filter: report_ids, date_from, or date_to.",
         )
 
-    conditions = []
-
-    if payload.report_ids:
-        conditions.append(Report.id.in_(payload.report_ids))
-
-    date_conditions = []
-    from datetime import datetime, time
-    from zoneinfo import ZoneInfo
-    from app.config import settings
+    # Report bulk periods are local calendar days, unlike log bulk delete which
+    # receives explicit UTC datetimes. Convert each day to its local-day bounds
+    # before handing the datetimes to the shared condition builder.
     tz = ZoneInfo(settings.app_timezone)
+    date_from = (
+        datetime.combine(payload.date_from, time.min, tzinfo=tz)
+        if payload.date_from
+        else None
+    )
+    date_to = (
+        datetime.combine(payload.date_to, time.max, tzinfo=tz)
+        if payload.date_to
+        else None
+    )
 
-    # Report bulk periods are local calendar days, unlike log bulk delete
-    # which receives explicit UTC datetimes.
-    if payload.date_from:
-        start_of_day = datetime.combine(payload.date_from, time.min, tzinfo=tz)
-        date_conditions.append(Report.generated_at >= start_of_day)
-    if payload.date_to:
-        end_of_day = datetime.combine(payload.date_to, time.max, tzinfo=tz)
-        date_conditions.append(Report.generated_at <= end_of_day)
-
-    if date_conditions:
-        from sqlalchemy import and_
-        if payload.report_ids:
-            from sqlalchemy import or_
-            # ID selection and period selection are additive.
-            conditions = [or_(Report.id.in_(payload.report_ids), and_(*date_conditions))]
-        else:
-            conditions = date_conditions
+    conditions = build_bulk_delete_conditions(
+        id_column=Report.id,
+        ids=payload.report_ids,
+        date_column=Report.generated_at,
+        date_from=date_from,
+        date_to=date_to,
+    )
 
     rows = db.scalars(select(Report).where(*conditions)).all()
     count = len(rows)
