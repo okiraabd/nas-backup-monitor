@@ -71,7 +71,7 @@ export function MonitorCeph() {
     time: formatTimeWib(p.collected_at),
     fullDate: formatDateTimeWib(p.collected_at),
     value: p.value ?? null,
-  })).reverse() || [];
+  })) || [];
 
   return (
     <div className="space-y-6">

@@ -243,7 +243,7 @@ function MetricChart({ nasId, metric, hours, setHours, autoRefresh }: { nasId: s
     time: formatTimeWib(p.collected_at),
     fullDate: formatDateTimeWib(p.collected_at),
     value: p.value ?? null,
-  })).reverse() || [];
+  })) || [];
 
   const title = METRIC_LABELS[metric] || metric.replace(/_/g, " ");
   // Using % for percentages
