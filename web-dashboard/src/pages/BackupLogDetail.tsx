@@ -7,7 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import { api } from "@/lib/api";
-import { formatBytes } from "@/lib/utils";
+import { formatBytes, formatDurationSeconds } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { formatDateTimeWib, formatLongDateTimeWib } from "@/lib/datetime";
 import { Button } from "@/components/ui/button";
@@ -179,7 +179,7 @@ export function BackupLogDetail() {
               </div>
               <div className="min-w-0">
                 <div className="font-medium text-muted-foreground">Duration</div>
-                <div className="break-words">{log.duration_seconds ? `${log.duration_seconds} seconds` : "-"}</div>
+                <div className="break-words">{formatDurationSeconds(log.duration_seconds)}</div>
               </div>
               <div className="min-w-0">
                 <div className="font-medium text-muted-foreground">Engine</div>

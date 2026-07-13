@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { formatDateTimeWib, jakartaDateToUtcRange } from "@/lib/datetime";
+import { formatDurationSeconds } from "@/lib/utils";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Eye, CheckCircle2, XCircle, History, X, RefreshCw, Trash2, Clock } from "lucide-react";
 import { z } from "zod";
@@ -474,7 +475,7 @@ export function BackupLogs() {
                         </div>
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
-                        {log.duration_seconds ? `${log.duration_seconds}s` : "-"}
+                        {formatDurationSeconds(log.duration_seconds)}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="icon" asChild>
