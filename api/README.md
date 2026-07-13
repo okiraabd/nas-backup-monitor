@@ -311,12 +311,13 @@ menaikkan token_version pada operasi berikut:
 | Operasi | Dampak |
 |---|---|
 | PATCH /api/users/{id}/password | Password diubah dan seluruh token user menjadi tidak valid. |
-| POST /api/users/{id}/rotate-token | Password acak baru dibuat dan ditampilkan sekali; seluruh token lama user invalid. Umumnya dipakai untuk machine account. |
+| POST /api/users/{id}/password/generate | Password acak baru dibuat dan ditampilkan sekali; seluruh token lama user invalid. |
 | PATCH /api/users/{id} dengan is_active=false | User dinonaktifkan dan seluruh token lama invalid. |
 | DELETE /api/users/{id} | User dihapus permanen bila tidak punya data terkait, atau dinonaktifkan dan token lama invalid bila data historis perlu dipertahankan. |
 
 Tidak ada endpoint khusus logout everywhere. Admin dapat memakai reset password
-atau rotate-token untuk machine account bila perlu memutus seluruh sesi user.
+atau generate password bila perlu memutus seluruh sesi user sekaligus mengganti
+password-nya.
 
 Mengubah role tidak menaikkan token_version. Ini tetap aman untuk otorisasi
 karena setiap request mengambil role terbaru dari database; role baru langsung
@@ -360,8 +361,9 @@ rotasi secret yang aman.
   membatasi dampak token bocor, tetapi membutuhkan login/refresh lebih sering.
 - Simpan password service/collector di secret store atau file berizin ketat,
   bukan di repository.
-- Rotasi password machine account lewat endpoint rotate-token, simpan password
-  baru sekali tampil, lalu perbarui NAS/collector sebelum proses lama berhenti.
+- Rotasi password machine account lewat endpoint password/generate, simpan
+  password baru sekali tampil, lalu perbarui NAS/collector sebelum proses lama
+  berhenti.
 - Ubah JWT_SECRET_KEY secara terencana bila terjadi insiden global; tindakan
   ini memutus seluruh sesi dan memerlukan restart/redeploy API.
 - CORS_ORIGINS membatasi origin browser, tetapi bukan pengganti autentikasi dan
@@ -461,7 +463,7 @@ Freshness dihitung di server dari metric terbaru per sumber:
 | PATCH /api/users/{user_id} | admin | Ubah display name, role, atau aktif/nonaktif. |
 | DELETE /api/users/{user_id} | admin | Smart delete; hard-delete bila aman, soft-delete bila ada data terkait, force=true untuk hard-delete dengan FK dibuat NULL. |
 | PATCH /api/users/{user_id}/password | admin | Set password baru dan invalidate token lama. |
-| POST /api/users/{user_id}/rotate-token | admin | Buat password acak baru sekali tampil dan invalidate token lama; terutama untuk service/collector. |
+| POST /api/users/{user_id}/password/generate | admin | Buat password acak baru sekali tampil dan invalidate token lama. |
 
 API melindungi dari hilangnya akses admin terakhir dan mencegah admin
 menonaktifkan/menghapus akses adminnya sendiri.

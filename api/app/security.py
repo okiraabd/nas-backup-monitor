@@ -12,7 +12,7 @@ from app.config import settings
 
 
 def generate_password(length: int = 20) -> str:
-    """Generate a cryptographically strong random password (for token rotation)."""
+    """Generate a cryptographically strong random account password."""
     alphabet = string.ascii_letters + string.digits
     return "".join(secrets.choice(alphabet) for _ in range(length))
 

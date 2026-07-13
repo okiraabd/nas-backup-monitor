@@ -33,12 +33,13 @@ const formSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters").max(64),
   display_name: z.string().min(3, "Display name is required").max(128),
   role: z.enum(["admin", "service", "collector", "operator"]),
+  password_method: z.enum(["manual", "generate"]),
   password: z.string().max(128).optional(),
 }).superRefine((data, ctx) => {
-  if ((data.role === "admin" || data.role === "operator") && (!data.password || data.password.length < 6)) {
+  if (data.password_method === "manual" && (!data.password || data.password.length < 6)) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: "Password must be at least 6 characters for human accounts",
+      message: "Password must be at least 6 characters",
       path: ["password"],
     });
   }
@@ -52,7 +53,7 @@ export function Users() {
   const { user: currentUser } = useAuth();
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
-  const [tokenResult, setTokenResult] = useState<{username: string, token: string} | null>(null);
+  const [passwordResult, setPasswordResult] = useState<{username: string, password: string, sessionsRevoked: boolean} | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("ALL");
   const [deleteConfirm, setDeleteConfirm] = useState<{id: number, username: string} | null>(null);
@@ -78,6 +79,7 @@ export function Users() {
       username: "",
       display_name: "",
       role: "operator",
+      password_method: "manual",
       password: "",
     },
   });
@@ -90,35 +92,38 @@ export function Users() {
   });
 
   const selectedRole = form.watch("role");
+  const createPasswordMethod = form.watch("password_method");
 
-  const generateToken = () => {
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
-    let token = "";
-    for (let i = 0; i < 32; i++) {
-      token += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return token;
+  const generatePassword = () => {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    const values = crypto.getRandomValues(new Uint32Array(20));
+    return Array.from(values, (value) => chars[value % chars.length]).join("");
   };
 
   const createMutation = useMutation({
     mutationFn: async (values: z.infer<typeof formSchema>) => {
-      const res = await api.post("/users", values);
-      return { user: res.data as UserOut, password: values.password };
+      const { password_method, ...payload } = values;
+      const res = await api.post("/users", payload);
+      return {
+        user: res.data as UserOut,
+        password: payload.password,
+        passwordMethod: password_method,
+      };
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       setCreateOpen(false);
       form.reset();
-      if (data.user.role === "service" || data.user.role === "collector") {
-        setTokenResult({ username: data.user.username, token: data.password ?? "" });
+      if (data.passwordMethod === "generate") {
+        setPasswordResult({ username: data.user.username, password: data.password ?? "", sessionsRevoked: false });
       }
     },
   });
 
   const onSubmit = (values: z.infer<typeof formSchema>) => {
     const payload = { ...values };
-    if (payload.role === "service" || payload.role === "collector") {
-      payload.password = generateToken();
+    if (payload.password_method === "generate") {
+      payload.password = generatePassword();
     }
     createMutation.mutate(payload);
   };
@@ -143,15 +148,15 @@ export function Users() {
     },
   });
 
-  const rotateMutation = useMutation({
+  const generatePasswordMutation = useMutation({
     mutationFn: async ({ id, username }: { id: number, username: string }) => {
-      const res = await api.post(`/users/${id}/rotate-token`);
+      const res = await api.post(`/users/${id}/password/generate`);
       return { username, password: res.data.new_password };
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       setResetPasswordTarget(null);
-      setTokenResult({ username: data.username, token: data.password });
+      setPasswordResult({ username: data.username, password: data.password, sessionsRevoked: true });
     },
   });
 
@@ -177,9 +182,9 @@ export function Users() {
     }
   };
 
-  const handleCopyToken = () => {
-    if (tokenResult?.token) {
-      navigator.clipboard.writeText(tokenResult.token);
+  const handleCopyPassword = () => {
+    if (passwordResult?.password) {
+      navigator.clipboard.writeText(passwordResult.password);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
@@ -285,14 +290,42 @@ export function Users() {
                     </FormItem>
                   )}
                 />
-                {selectedRole === "admin" || selectedRole === "operator" ? (
+                <FormField
+                  control={form.control}
+                  name="password_method"
+                  render={({ field }) => (
+                    <FormItem className="space-y-3">
+                      <FormLabel>Initial Password Method</FormLabel>
+                      <FormControl>
+                        <RadioGroup
+                          value={field.value}
+                          onValueChange={field.onChange}
+                          className="flex flex-col space-y-2"
+                        >
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="manual" id="create-manual" />
+                            <Label htmlFor="create-manual" className="font-normal cursor-pointer">Input initial password</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="generate" id="create-generate" />
+                            <Label htmlFor="create-generate" className="font-normal cursor-pointer">Generate random password</Label>
+                          </div>
+                        </RadioGroup>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                {createPasswordMethod === "manual" ? (
                   <FormField
                     control={form.control}
                     name="password"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Initial Password</FormLabel>
-                        <FormControl><Input type="password" {...field} value={field.value || ""} /></FormControl>
+                        <FormControl>
+                          <Input type="password" placeholder="Minimum 6 characters" {...field} value={field.value || ""} />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -300,7 +333,7 @@ export function Users() {
                 ) : (
                   <div className="bg-muted p-3 rounded-md border text-sm text-muted-foreground flex items-center gap-2">
                     <Key className="h-4 w-4 shrink-0" />
-                    A highly secure 32-character token will be automatically generated and displayed after creation.
+                    A secure 20-character password will be generated and shown once after creation.
                   </div>
                 )}
                 <DialogFooter className="pt-4">
@@ -316,31 +349,31 @@ export function Users() {
         }
       />
 
-      <Dialog open={!!tokenResult} onOpenChange={(open) => !open && setTokenResult(null)}>
+      <Dialog open={!!passwordResult} onOpenChange={(open) => !open && setPasswordResult(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>New Password Generated</DialogTitle>
             <DialogDescription>
-              Please copy this new password for <strong>{tokenResult?.username}</strong>. It will not be shown again.
-              All existing active sessions/tokens for this user have been instantly revoked.
+              Please copy this new password for <strong>{passwordResult?.username}</strong>. It will not be shown again.
+              {passwordResult?.sessionsRevoked && " All existing active sessions/tokens for this user have been instantly revoked."}
             </DialogDescription>
           </DialogHeader>
           <div className="flex items-center gap-2 mt-2">
             <div className="bg-muted p-4 rounded-md font-mono text-center text-lg select-all flex-1">
-              {tokenResult?.token}
+              {passwordResult?.password}
             </div>
             <Button
               variant="outline"
               size="icon"
               className="h-14 w-14 shrink-0"
-              onClick={handleCopyToken}
+              onClick={handleCopyPassword}
               title="Copy to clipboard"
             >
               {copied ? <Check className="h-6 w-6 text-emerald-500" /> : <Copy className="h-6 w-6" />}
             </Button>
           </div>
           <DialogFooter>
-            <Button onClick={() => setTokenResult(null)}>Close</Button>
+            <Button onClick={() => setPasswordResult(null)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -419,7 +452,7 @@ export function Users() {
                 resetForm.handleSubmit(onResetPasswordSubmit)(e);
               } else {
                 if (resetPasswordTarget) {
-                  rotateMutation.mutate({ id: resetPasswordTarget.id, username: resetPasswordTarget.username });
+                  generatePasswordMutation.mutate({ id: resetPasswordTarget.id, username: resetPasswordTarget.username });
                 }
               }
             }} className="space-y-4 py-2">
@@ -482,8 +515,8 @@ export function Users() {
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={resetPasswordMutation.isPending || rotateMutation.isPending}>
-                  {(resetPasswordMutation.isPending || rotateMutation.isPending) ? "Processing..." : (passwordMethod === "manual" ? "Save Password" : "Generate Password")}
+                <Button type="submit" disabled={resetPasswordMutation.isPending || generatePasswordMutation.isPending}>
+                  {(resetPasswordMutation.isPending || generatePasswordMutation.isPending) ? "Processing..." : (passwordMethod === "manual" ? "Save Password" : "Generate Password")}
                 </Button>
               </DialogFooter>
             </form>
@@ -602,7 +635,7 @@ export function Users() {
                               setResetPasswordTarget({ id: user.id, username: user.username, role: user.role });
                               setPasswordMethod((user.role === "service" || user.role === "collector") ? "generate" : "manual");
                             }}
-                            disabled={resetPasswordMutation.isPending || rotateMutation.isPending}
+                            disabled={resetPasswordMutation.isPending || generatePasswordMutation.isPending}
                           >
                             <LockKeyhole className="h-4 w-4" />
                           </Button>

@@ -115,19 +115,65 @@ class TestPasswordAndToken:
                 headers=admin_headers,
             )
 
-    def test_rotate_token_service_account(self, client, admin_headers):
-        users = client.get("/api/users", headers=admin_headers).json()
-        target = [u for u in users if u["role"] == "service" and u["is_active"]]
-        if target:
-            uid = target[0]["id"]
-            resp = client.post(f"/api/users/{uid}/rotate-token", headers=admin_headers)
+    def test_generate_password_service_account(self, client, admin_headers):
+        created = client.post(
+            "/api/users",
+            json={
+                "username": "generate-service-test",
+                "password": "oldpass123",
+                "display_name": "Generate Service Test",
+                "role": "service",
+            },
+            headers=admin_headers,
+        )
+        assert created.status_code == 201
+        uid = created.json()["id"]
+
+        try:
+            resp = client.post(f"/api/users/{uid}/password/generate", headers=admin_headers)
             assert resp.status_code == 200
             data = resp.json()
             assert "new_password" in data
             assert data["message"]  # "Store this password now..."
 
-    def test_rotate_token_admin_rejected(self, client, admin_headers):
-        users = client.get("/api/users", headers=admin_headers).json()
-        admin_user = [u for u in users if u["role"] == "admin"][0]
-        resp = client.post(f"/api/users/{admin_user['id']}/rotate-token", headers=admin_headers)
-        assert resp.status_code == 400
+            old_login = client.post(
+                "/api/auth/login",
+                json={"username": "generate-service-test", "password": "oldpass123"},
+            )
+            assert old_login.status_code == 401
+
+            new_login = client.post(
+                "/api/auth/login",
+                json={"username": "generate-service-test", "password": data["new_password"]},
+            )
+            assert new_login.status_code == 200
+        finally:
+            client.delete(f"/api/users/{uid}", headers=admin_headers)
+
+    def test_generate_password_admin_allowed(self, client, admin_headers):
+        created = client.post(
+            "/api/users",
+            json={
+                "username": "rotate-admin-test",
+                "password": "oldpass123",
+                "display_name": "Rotate Admin Test",
+                "role": "admin",
+            },
+            headers=admin_headers,
+        )
+        assert created.status_code == 201
+        uid = created.json()["id"]
+
+        try:
+            resp = client.post(f"/api/users/{uid}/password/generate", headers=admin_headers)
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["username"] == "rotate-admin-test"
+
+            new_login = client.post(
+                "/api/auth/login",
+                json={"username": "rotate-admin-test", "password": data["new_password"]},
+            )
+            assert new_login.status_code == 200
+        finally:
+            client.delete(f"/api/users/{uid}", headers=admin_headers)

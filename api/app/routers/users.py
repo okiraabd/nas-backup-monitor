@@ -10,8 +10,8 @@ from app.models.metric import Metric
 from app.models.report import Report
 from app.models.user import ROLE_ADMIN, ROLE_COLLECTOR, ROLE_SERVICE, User
 from app.schemas.user import (
+    GeneratedPasswordResponse,
     PasswordUpdate,
-    RotateTokenResponse,
     UserCreate,
     UserOut,
     UserUpdate,
@@ -272,15 +272,15 @@ def reset_password(
 
 
 @router.post(
-    "/{user_id}/rotate-token",
-    response_model=RotateTokenResponse,
-    summary="Rotate a machine account password",
+    "/{user_id}/password/generate",
+    response_model=GeneratedPasswordResponse,
+    summary="Generate a random account password",
 )
-def rotate_token(
+def generate_random_password(
     user_id: int,
     db: Session = Depends(get_db),
     _current_user: User = Depends(require_admin),
-) -> RotateTokenResponse:
+) -> GeneratedPasswordResponse:
     """Generate a new password for an account (shown once).
 
     Bumps token_version to invalidate old tokens. Role: admin.
@@ -294,6 +294,6 @@ def rotate_token(
     user.token_version += 1
     db.commit()
     db.refresh(user)
-    return RotateTokenResponse(
+    return GeneratedPasswordResponse(
         user_id=user.id, username=user.username, new_password=new_password
     )

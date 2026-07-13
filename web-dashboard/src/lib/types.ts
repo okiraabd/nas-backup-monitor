@@ -19,13 +19,6 @@ export interface UserOut extends User {
   updated_at: string;
 }
 
-export interface RotateTokenResponse {
-  user_id: number;
-  username: string;
-  new_password: string;
-  message: string;
-}
-
 // --- Backup logs (api/app/schemas/log.py) ---
 export interface BackupLogSummary {
   id: number;
