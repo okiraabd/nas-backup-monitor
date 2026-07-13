@@ -144,16 +144,17 @@ vendor:
 | disk_used_pct | % | hrStorage terlebih dahulu; fallback RAID Synology atau volume WD. |
 | storage_total_bytes | bytes | Total storage dari hrStorage, RAID Synology, atau volume WD. |
 | storage_used_bytes | bytes | Storage terpakai dari sumber yang sama dengan disk_used_pct. |
-| system_uptime | seconds | sysUpTime TimeTicks dibagi 100. |
+| system_uptime | seconds | hrSystemUptime TimeTicks dibagi 100; fallback sysUpTime untuk config lama. |
 | snmp_reachable | bool | 1 jika scrape exporter berhasil, 0 jika gagal. |
 
 Parser dapat membaca output Prometheus normal maupun nilai WD DisplayString
 yang menjadi label. Persentase dibatasi ke rentang 0–100.
 
 Jika request ke exporter atau perangkat gagal, collector tetap membangun batch
-NAS dengan nilai 0 dan snmp_reachable=0. Bila ingest ke API berhasil, sumber
-tersebut tetap dihitung sukses pada collector run; gunakan metric reachability
-dan snapshot NAS untuk membedakan kegagalan perangkat dari kegagalan collector.
+NAS dengan nilai numeric 0, system_uptime=N/A, dan snmp_reachable=0. Bila
+ingest ke API berhasil, sumber tersebut tetap dihitung sukses pada collector
+run; gunakan metric reachability dan snapshot NAS untuk membedakan kegagalan
+perangkat dari kegagalan collector.
 
 ## Mengambil metrik Ceph
 
@@ -224,8 +225,9 @@ curl http://192.168.24.6:9283/metrics
 ~~~
 
 Output Synology idealnya memuat ssCpuIdle, memTotalReal, hrStorageSize,
-hrStorageUsed, dan sysUpTime. WD idealnya memuat sysUpTime,
-mycloudpr4100VolumeSize, dan mycloudpr4100VolumeFreeSpace.
+hrStorageUsed, hrSystemUptime, dan sysUpTime. WD idealnya memuat
+hrSystemUptime, sysUpTime, mycloudpr4100VolumeSize, dan
+mycloudpr4100VolumeFreeSpace.
 
 Setelah itu ubah USE_MOCK_METRICS=false, rebuild collector bila memakai
 Compose, dan periksa:

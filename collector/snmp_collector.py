@@ -44,7 +44,7 @@ def _unreachable_metrics() -> list[dict]:
         {"name": "disk_used_pct", "value": 0, "unit": "%"},
         {"name": "storage_total_bytes", "value": 0, "unit": "bytes"},
         {"name": "storage_used_bytes", "value": 0, "unit": "bytes"},
-        {"name": "system_uptime", "value": 0, "unit": "seconds"},
+        {"name": "system_uptime", "text": "N/A", "unit": "seconds"},
         {"name": "snmp_reachable", "value": 0, "unit": "bool"},
     ]
 
@@ -330,25 +330,38 @@ def _disk_usage(metrics: MetricSeries, profile: str) -> tuple[float, float, floa
     return (0.0, 0.0, 0.0)
 
 
-def _system_uptime(metrics: MetricSeries) -> int:
-    """Read sysUpTime and convert TimeTicks hundredths into seconds."""
-    uptime_hundredths = _get_single(metrics, ("sysUpTime", "sysUpTimeInstance"), 0) or 0
+def _system_uptime(metrics: MetricSeries) -> int | None:
+    """Read host uptime TimeTicks and convert hundredths into seconds.
+
+    hrSystemUptime is the NAS/host uptime. sysUpTime is only the SNMP agent or
+    network management uptime, so it is a fallback for older exporter configs.
+    """
+    uptime_hundredths = _get_single(metrics, ("hrSystemUptime", "hrSystemUptimeInstance"))
+    if uptime_hundredths is None:
+        uptime_hundredths = _get_single(metrics, ("sysUpTime", "sysUpTimeInstance"))
+    if uptime_hundredths is None:
+        return None
     return int(uptime_hundredths / 100)
 
 
 def _collect_normalized(metrics: MetricSeries, profile: str) -> list[dict]:
     """Normalize exporter output to the NAS metrics used by the dashboard."""
     used_pct, total_bytes, used_bytes = _disk_usage(metrics, profile)
+    uptime = _system_uptime(metrics)
 
-    return [
+    normalized = [
         {"name": "cpu_usage", "value": _cpu_usage(metrics), "unit": "%"},
         {"name": "ram_used_pct", "value": _ram_used_pct(metrics), "unit": "%"},
         {"name": "disk_used_pct", "value": used_pct, "unit": "%"},
         {"name": "storage_total_bytes", "value": total_bytes, "unit": "bytes"},
         {"name": "storage_used_bytes", "value": used_bytes, "unit": "bytes"},
-        {"name": "system_uptime", "value": _system_uptime(metrics), "unit": "seconds"},
-        {"name": "snmp_reachable", "value": 1, "unit": "bool"},
     ]
+    if uptime is None:
+        normalized.append({"name": "system_uptime", "text": "N/A", "unit": "seconds"})
+    else:
+        normalized.append({"name": "system_uptime", "value": uptime, "unit": "seconds"})
+    normalized.append({"name": "snmp_reachable", "value": 1, "unit": "bool"})
+    return normalized
 
 
 def _infer_profile(module: str | None, metrics: MetricSeries) -> str:

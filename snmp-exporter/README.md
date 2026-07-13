@@ -30,8 +30,8 @@ Panduan MIB ada di [mibs/README.md](mibs/README.md).
 
 | Module | Perangkat | MIB/metric utama |
 |---|---|---|
-| synology_nas | Synology NAS | sysUpTime, UCD-SNMP CPU/memory, HOST-RESOURCES storage, dan Synology system/disk/RAID. |
-| wd_pr4100 | WD My Cloud PR4100 | sysUpTime, standard MIB bila tersedia, serta MYCLOUDPR4100 temperature/volume/disk/UPS. |
+| synology_nas | Synology NAS | hrSystemUptime, sysUpTime, UCD-SNMP CPU/memory, HOST-RESOURCES storage, dan Synology system/disk/RAID. |
+| wd_pr4100 | WD My Cloud PR4100 | hrSystemUptime, sysUpTime, standard MIB bila tersedia, serta MYCLOUDPR4100 temperature/volume/disk/UPS. |
 
 Module Synology melakukan walk pada MIB standard dan enterprise 1.3.6.1.4.1.6574.
 Module WD melakukan walk pada enterprise 1.3.6.1.4.1.5127. Nilai DisplayString
@@ -44,8 +44,9 @@ Metric yang paling bermanfaat untuk collector:
 ~~~text
 ssCpuIdle                 memTotalReal              memAvailReal
 memBuffer                 memCached                 hrStorageSize
-hrStorageUsed             hrStorageAllocationUnits  sysUpTime
-temperature               raidTotalSize             raidFreeSize
+hrStorageUsed             hrStorageAllocationUnits  hrSystemUptime
+sysUpTime                 temperature               raidTotalSize
+raidFreeSize
 mycloudpr4100Temperature  mycloudpr4100VolumeSize
 mycloudpr4100VolumeFreeSpace
 ~~~
@@ -171,7 +172,7 @@ curl 'http://127.0.0.1:9116/snmp?auth=kkp_snmp_v2&target=192.168.24.4&module=wd_
 Verifikasi hal berikut sebelum menyalakan collector:
 
 - HTTP response berhasil dan scrape tidak timeout.
-- Metric sysUpTime muncul.
+- Metric hrSystemUptime muncul untuk uptime host; sysUpTime boleh dipakai sebagai fallback.
 - Synology menyediakan CPU/memory serta storage atau fallback RAID.
 - WD menyediakan volume size/free dan temperature, bila firmware mendukung.
 - Nilai DisplayString WD menjadi angka atau label yang masih dapat diparse.
