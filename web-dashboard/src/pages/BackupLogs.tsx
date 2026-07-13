@@ -4,11 +4,15 @@ import { api } from "@/lib/api";
 import { formatDateTimeWib, jakartaDateToUtcRange } from "@/lib/datetime";
 import { formatDurationSeconds } from "@/lib/utils";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { Eye, CheckCircle2, XCircle, History, X, RefreshCw, Trash2, Clock } from "lucide-react";
-import { z } from "zod";
+import { Eye, CheckCircle2, History, X, Trash2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "@/lib/auth";
+import { AutoRefreshControl } from "@/components/AutoRefreshControl";
+import { PageHeader } from "@/components/PageHeader";
+import { BackupStatusBadge } from "@/components/StatusBadge";
+import { bulkPeriodSchema, type BulkPeriodValues } from "@/lib/schemas";
+import type { NasListResponse, PaginatedLogs, BulkDeleteResponse } from "@/lib/types";
 
 import {
   Table,
@@ -27,14 +31,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Checkbox } from "@/components/ui/checkbox";
 
-const bulkPeriodSchema = z.object({
-  date_from: z.string().min(1, "Start date is required"),
-  date_to: z.string().min(1, "End date is required"),
-}).refine((data) => data.date_from <= data.date_to, {
-  message: "Start date must be on or before end date",
-  path: ["date_from"],
-});
-
 export function BackupLogs() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
@@ -48,7 +44,7 @@ export function BackupLogs() {
   const [nasId, setNasId] = useState("ALL");
   const [jobName, setJobName] = useState("");
   const [dateFilter, setDateFilter] = useState(initialDate);
-  const [autoRefresh, setAutoRefresh] = useState("10");
+  const [autoRefreshMs, setAutoRefreshMs] = useState(10000);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [selectedLogs, setSelectedLogs] = useState<Set<number>>(new Set());
   const [deleteConfirm, setDeleteConfirm] = useState<{ id?: number, bulk?: boolean, period?: { date_from: string, date_to: string } } | null>(null);
@@ -56,10 +52,10 @@ export function BackupLogs() {
   
   const pageSize = 10;
   const dateFromUrl = searchParams.get("date") || "";
-  const refetchInterval = autoRefresh !== "0" ? parseInt(autoRefresh) * 1000 : false;
+  const refetchInterval = autoRefreshMs !== 0 ? autoRefreshMs : false;
   const queryClient = useQueryClient();
 
-  const periodForm = useForm<z.infer<typeof bulkPeriodSchema>>({
+  const periodForm = useForm<BulkPeriodValues>({
     resolver: zodResolver(bulkPeriodSchema),
     defaultValues: {
       date_from: "",
@@ -67,7 +63,7 @@ export function BackupLogs() {
     },
   });
 
-  const { data: nasList } = useQuery({
+  const { data: nasList } = useQuery<NasListResponse>({
     queryKey: ["nas-list"],
     queryFn: async () => {
       const res = await api.get("/monitor/nas");
@@ -95,10 +91,10 @@ export function BackupLogs() {
     setPage(1);
   };
 
-  const { data, isLoading, isFetching, dataUpdatedAt } = useQuery({
+  const { data, isLoading, isFetching, dataUpdatedAt } = useQuery<PaginatedLogs>({
     queryKey: ["logs", page, status, nasId, jobName, dateFilter],
     queryFn: async () => {
-      const params: any = { page, page_size: pageSize };
+      const params: Record<string, string | number> = { page, page_size: pageSize };
       if (status !== "ALL") params.status = status;
       if (nasId !== "ALL") params.nas_id = nasId;
       if (jobName) params.job_name = jobName;
@@ -121,9 +117,9 @@ export function BackupLogs() {
     queryClient.invalidateQueries({ queryKey: ["logs", page, status, nasId, jobName, dateFilter] });
   };
 
-  const bulkDeleteMutation = useMutation({
-    mutationFn: async (payload: { log_ids?: number[]; date_from?: string; date_to?: string }) => {
-      const apiPayload: any = {};
+  const bulkDeleteMutation = useMutation<BulkDeleteResponse, unknown, { log_ids?: number[]; date_from?: string; date_to?: string }>({
+    mutationFn: async (payload) => {
+      const apiPayload: { log_ids?: number[]; date_from?: string; date_to?: string } = {};
       if (payload.log_ids) apiPayload.log_ids = payload.log_ids;
       if (payload.date_from) {
         const from = jakartaDateToUtcRange(payload.date_from);
@@ -145,65 +141,29 @@ export function BackupLogs() {
     },
   });
 
-  const onPeriodSubmit = (values: z.infer<typeof bulkPeriodSchema>) => {
+  const onPeriodSubmit = (values: BulkPeriodValues) => {
     setBulkDeleteOpen(false);
     setDeleteConfirm({ period: { date_from: values.date_from, date_to: values.date_to } });
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "SUCCESS":
-        return <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20"><CheckCircle2 className="w-3 h-3 mr-1"/> SUCCESS</Badge>;
-      case "FAILED":
-        return <Badge variant="outline" className="bg-rose-500/10 text-rose-500 border-rose-500/20"><XCircle className="w-3 h-3 mr-1"/> FAILED</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
+  const getStatusBadge = (status: string) => <BackupStatusBadge status={status} />;
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-3 sm:gap-4">
-        <div>
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Backup Logs</h2>
-          <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base hidden sm:block">
-            History of all backup jobs from your NAS devices.
-          </p>
-        </div>
-        <div className="flex items-center gap-4 text-sm text-muted-foreground hidden lg:flex">
-          {dataUpdatedAt > 0 && (
-            <span className="flex items-center gap-1">
-              <Clock className="w-3 h-3" /> 
-              Last updated: {new Date(dataUpdatedAt).toLocaleTimeString()}
-            </span>
-          )}
-          <div className="flex items-center gap-2 border-l pl-4 border-border">
-            <span className="text-xs">Auto Refresh:</span>
-            <Select value={autoRefresh} onValueChange={setAutoRefresh}>
-              <SelectTrigger className="h-8 w-[80px] text-xs bg-background">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="0">Off</SelectItem>
-                <SelectItem value="10">10s</SelectItem>
-                <SelectItem value="30">30s</SelectItem>
-                <SelectItem value="60">1m</SelectItem>
-                <SelectItem value="300">5m</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-8 w-8 bg-background"
-              onClick={handleManualRefresh}
-              disabled={isFetching}
-              title="Refresh Now"
-            >
-              <RefreshCw className={`h-3 w-3 ${isFetching ? "animate-spin" : ""}`} />
-            </Button>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        className="gap-3 sm:gap-4"
+        title="Backup Logs"
+        description="History of all backup jobs from your NAS devices."
+        actions={
+          <AutoRefreshControl
+            valueMs={autoRefreshMs}
+            onChangeMs={setAutoRefreshMs}
+            onRefresh={handleManualRefresh}
+            isFetching={isFetching}
+            lastUpdatedAt={dataUpdatedAt}
+          />
+        }
+      />
 
       {deleteResult && (
         <div className="bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 p-3 rounded-md text-sm flex items-center justify-between gap-3">
@@ -341,7 +301,7 @@ export function BackupLogs() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ALL">All NAS Devices</SelectItem>
-                  {nasList?.items?.map((n: any) => (
+                  {nasList?.items?.map((n) => (
                     <SelectItem key={n.source_id} value={n.source_id}>
                       {n.source_id}
                     </SelectItem>
@@ -406,11 +366,11 @@ export function BackupLogs() {
                 <TableRow>
                   {isAdmin && (
                     <TableHead className="w-[50px]">
-                      <Checkbox 
-                        checked={data?.items?.length > 0 && selectedLogs.size === data.items.length}
+                      <Checkbox
+                        checked={!!data?.items?.length && selectedLogs.size === data.items.length}
                         onCheckedChange={(checked) => {
                           if (checked) {
-                            setSelectedLogs(new Set(data.items.map((l: any) => l.id)));
+                            setSelectedLogs(new Set(data?.items?.map((l) => l.id)));
                           } else {
                             setSelectedLogs(new Set());
                           }
@@ -446,7 +406,7 @@ export function BackupLogs() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  data?.items?.map((log: any) => (
+                  data?.items?.map((log) => (
                     <TableRow key={log.id}>
                       {isAdmin && (
                         <TableCell>

@@ -7,12 +7,13 @@ import { Activity, Clock, ShieldAlert, CheckCircle2, Play, RefreshCw } from "luc
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import type { CollectorStatus as CollectorStatusData } from "@/lib/types";
 
 export function CollectorStatus() {
   const queryClient = useQueryClient();
   const [isTriggering, setIsTriggering] = useState(false);
 
-  const { data: status, isLoading } = useQuery({
+  const { data: status, isLoading } = useQuery<CollectorStatusData>({
     queryKey: ["collector-status"],
     queryFn: async () => {
       const res = await api.get("/monitor/collector/status");
@@ -37,6 +38,8 @@ export function CollectorStatus() {
 
   return (
     <div className="space-y-6">
+      {/* Custom header: the description stays visible on mobile here, so this
+          page keeps its own header markup instead of the shared PageHeader. */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-3 sm:gap-4">
         <div>
           <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Collector Status</h2>
@@ -44,8 +47,8 @@ export function CollectorStatus() {
             Status of the background metrics collection agent.
           </p>
         </div>
-        <Button 
-          onClick={() => runMutation.mutate()} 
+        <Button
+          onClick={() => runMutation.mutate()}
           disabled={runMutation.isPending || isTriggering || status?.last_status === "RUNNING"}
           className="self-start sm:self-auto"
           size="sm"
@@ -129,7 +132,7 @@ export function CollectorStatus() {
               </div>
               <div className="bg-muted p-4 rounded-lg col-span-2">
                 <p className="text-sm font-medium text-muted-foreground mb-1">Failed</p>
-                <p className={`text-3xl font-bold ${status?.failed_sources > 0 ? 'text-rose-500' : ''}`}>
+                <p className={`text-3xl font-bold ${(status?.failed_sources ?? 0) > 0 ? 'text-rose-500' : ''}`}>
                   {status?.failed_sources || 0}
                 </p>
               </div>

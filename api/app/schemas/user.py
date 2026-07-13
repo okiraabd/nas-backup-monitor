@@ -55,10 +55,10 @@ class PasswordUpdate(BaseModel):
     new_password: str = Field(..., min_length=6, max_length=128, description="New plaintext password.")
 
 
-class RotateTokenResponse(BaseModel):
-    """Returned once after rotating a service/collector account's password."""
-    user_id: int = Field(..., description="User ID whose password was rotated.")
-    username: str = Field(..., description="Machine account username.")
+class GeneratedPasswordResponse(BaseModel):
+    """Returned once after generating a new account password."""
+    user_id: int = Field(..., description="User ID whose password was changed.")
+    username: str = Field(..., description="Account username.")
     new_password: str = Field(..., description="New one-time plaintext password.")
     message: str = Field(
         "Store this password now; it will not be shown again.",

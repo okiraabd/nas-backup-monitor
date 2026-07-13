@@ -143,3 +143,5 @@ snmp-exporter/.secrets/
 .gemini/
 .claude/
 test_auth.py
+REVIEW.md
+MOBILE_APP_PLAN.md

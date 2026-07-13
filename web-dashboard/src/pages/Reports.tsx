@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { AxiosError } from "axios";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -24,22 +25,15 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Checkbox } from "@/components/ui/checkbox";
+import { PageHeader } from "@/components/PageHeader";
+import { bulkPeriodSchema, type BulkPeriodValues } from "@/lib/schemas";
+import type { NasListResponse, Report, BulkDeleteResponse } from "@/lib/types";
 
 const generateReportSchema = z.object({
   date_from: z.string().min(1, "Start date is required"),
   date_to: z.string().min(1, "End date is required"),
   nas_id: z.string().optional(),
   custom_name: z.string().optional(),
-}).refine(data => {
-  return new Date(data.date_to) >= new Date(data.date_from);
-}, {
-  message: "End date must be on or after start date",
-  path: ["date_to"],
-});
-
-const bulkPeriodSchema = z.object({
-  date_from: z.string().min(1, "Start date is required"),
-  date_to: z.string().min(1, "End date is required"),
 }).refine(data => {
   return new Date(data.date_to) >= new Date(data.date_from);
 }, {
@@ -69,7 +63,7 @@ export function Reports() {
     },
   });
 
-  const periodForm = useForm<z.infer<typeof bulkPeriodSchema>>({
+  const periodForm = useForm<BulkPeriodValues>({
     resolver: zodResolver(bulkPeriodSchema),
     defaultValues: {
       date_from: "",
@@ -77,7 +71,7 @@ export function Reports() {
     },
   });
 
-  const { data: nasList } = useQuery({
+  const { data: nasList } = useQuery<NasListResponse>({
     queryKey: ["nas-list"],
     queryFn: async () => {
       const res = await api.get("/monitor/nas");
@@ -85,7 +79,7 @@ export function Reports() {
     },
   });
 
-  const { data: reports, isLoading } = useQuery({
+  const { data: reports, isLoading } = useQuery<Report[]>({
     queryKey: ["reports"],
     queryFn: async () => {
       const res = await api.get("/reports");
@@ -94,7 +88,12 @@ export function Reports() {
   });
 
   const generateMutation = useMutation({
-    mutationFn: async (payload: any) => {
+    mutationFn: async (payload: {
+      date_from: string;
+      date_to: string;
+      nas_id: string | null;
+      custom_name?: string;
+    }) => {
       const res = await api.post("/reports/generate", payload);
       return res.data;
     },
@@ -104,8 +103,10 @@ export function Reports() {
       generateForm.reset();
       setError("");
     },
-    onError: (err: any) => {
-      setError(err.response?.data?.detail || "Failed to generate report");
+    onError: (err) => {
+      const detail =
+        err instanceof AxiosError ? err.response?.data?.detail : undefined;
+      setError(detail || "Failed to generate report");
     },
   });
 
@@ -113,7 +114,7 @@ export function Reports() {
     generateMutation.mutate({
       date_from: values.date_from,
       date_to: values.date_to,
-      nas_id: values.nas_id === "ALL" ? null : values.nas_id,
+      nas_id: values.nas_id === "ALL" ? null : values.nas_id ?? null,
       custom_name: values.custom_name?.trim() || undefined,
     });
   };
@@ -129,8 +130,8 @@ export function Reports() {
     },
   });
 
-  const bulkDeleteMutation = useMutation({
-    mutationFn: async (payload: { report_ids?: number[], date_from?: string, date_to?: string }) => {
+  const bulkDeleteMutation = useMutation<BulkDeleteResponse, unknown, { report_ids?: number[], date_from?: string, date_to?: string }>({
+    mutationFn: async (payload) => {
       const res = await api.delete(`/reports`, { data: payload });
       return res.data;
     },
@@ -145,7 +146,7 @@ export function Reports() {
     },
   });
 
-  const onPeriodSubmit = (values: z.infer<typeof bulkPeriodSchema>) => {
+  const onPeriodSubmit = (values: BulkPeriodValues) => {
     setBulkPeriodOpen(false);
     setDeleteConfirm({ period: { date_from: values.date_from, date_to: values.date_to } });
   };
@@ -177,13 +178,11 @@ export function Reports() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-3 sm:gap-4">
-        <div>
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Reports</h2>
-          <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base hidden sm:block">
-            Generate and download PDF reports of backup operations.
-          </p>
-        </div>
+      <PageHeader
+        className="gap-3 sm:gap-4"
+        title="Reports"
+        description="Generate and download PDF reports of backup operations."
+        actions={
         <Dialog open={dialogOpen} onOpenChange={(open) => {
           setDialogOpen(open);
           if (!open) {
@@ -266,7 +265,7 @@ export function Reports() {
                         </FormControl>
                         <SelectContent>
                           <SelectItem value="ALL">All NAS Devices</SelectItem>
-                          {nasList?.items?.map((n: any) => (
+                          {nasList?.items?.map((n) => (
                             <SelectItem key={n.source_id} value={n.source_id}>
                               {n.source_id}
                             </SelectItem>
@@ -287,7 +286,8 @@ export function Reports() {
             </Form>
           </DialogContent>
         </Dialog>
-      </div>
+        }
+      />
 
       {deleteResult && (
         <div className="bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 p-3 rounded-md text-sm flex items-center justify-between gap-3">
@@ -429,10 +429,10 @@ export function Reports() {
                   {isAdmin && (
                     <TableHead className="w-[50px]">
                       <Checkbox 
-                        checked={reports?.length > 0 && selectedReports.size === reports.length}
+                        checked={!!reports?.length && selectedReports.size === reports.length}
                         onCheckedChange={(checked) => {
                           if (checked) {
-                            setSelectedReports(new Set(reports.map((r: any) => r.id)));
+                            setSelectedReports(new Set(reports?.map((r) => r.id)));
                           } else {
                             setSelectedReports(new Set());
                           }
@@ -463,7 +463,7 @@ export function Reports() {
                     </TableCell>
                   </TableRow>
                 ) : (() => {
-                  const filteredReports = reports?.filter((r: any) => 
+                  const filteredReports = reports?.filter((r) => 
                     !searchFilter || r.filename.toLowerCase().includes(searchFilter.toLowerCase())
                   );
 
@@ -480,7 +480,7 @@ export function Reports() {
                     );
                   }
 
-                  return filteredReports?.map((report: any) => (
+                  return filteredReports?.map((report) => (
                     <TableRow key={report.id}>
                       {isAdmin && (
                         <TableCell>

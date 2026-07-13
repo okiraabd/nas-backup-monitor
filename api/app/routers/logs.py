@@ -11,6 +11,7 @@ from app.database import get_db
 from app.dependencies import require_operator_or_admin, require_service, require_admin
 from app.models.backup_log import STATUS_FAILED, BackupLog
 from app.models.user import User
+from app.services.bulk_delete import build_bulk_delete_conditions
 from app.schemas.log import (
     AcknowledgeRequest,
     BulkDeleteRequest,
@@ -248,25 +249,14 @@ def bulk_delete_logs(
             detail="Provide at least one filter: log_ids, date_from, or date_to.",
         )
 
-    conditions = []
-
-    if payload.log_ids:
-        conditions.append(BackupLog.id.in_(payload.log_ids))
-
-    date_conditions = []
-    if payload.date_from:
-        date_conditions.append(BackupLog.created_at >= payload.date_from)
-    if payload.date_to:
-        date_conditions.append(BackupLog.created_at <= payload.date_to)
-
-    if date_conditions:
-        from sqlalchemy import and_
-        if payload.log_ids:
-            # Combining selected IDs and a period is additive: delete either set.
-            from sqlalchemy import or_
-            conditions = [or_(BackupLog.id.in_(payload.log_ids), and_(*date_conditions))]
-        else:
-            conditions = date_conditions
+    # Backup logs receive explicit UTC datetimes, so the bounds are used as-is.
+    conditions = build_bulk_delete_conditions(
+        id_column=BackupLog.id,
+        ids=payload.log_ids,
+        date_column=BackupLog.created_at,
+        date_from=payload.date_from,
+        date_to=payload.date_to,
+    )
 
     rows = db.scalars(select(BackupLog).where(*conditions)).all()
     count = len(rows)

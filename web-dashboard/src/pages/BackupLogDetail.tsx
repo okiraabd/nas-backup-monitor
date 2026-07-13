@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, CheckCircle2, XCircle, AlertTriangle, Trash2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, AlertTriangle, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -12,9 +12,10 @@ import { useAuth } from "@/lib/auth";
 import { formatDateTimeWib, formatLongDateTimeWib } from "@/lib/datetime";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { BackupStatusBadge } from "@/components/StatusBadge";
+import type { BackupLogDetail as BackupLogDetailData, BulkDeleteResponse } from "@/lib/types";
 
 const acknowledgeSchema = z.object({
   remark: z.string().min(1, "Remark is required").max(2000, "Remark is too long"),
@@ -35,7 +36,7 @@ export function BackupLogDetail() {
     },
   });
 
-  const { data: log, isLoading } = useQuery({
+  const { data: log, isLoading } = useQuery<BackupLogDetailData>({
     queryKey: ["log", id],
     queryFn: async () => {
       const res = await api.get(`/logs/${id}`);
@@ -54,7 +55,7 @@ export function BackupLogDetail() {
     },
   });
 
-  const deleteMutation = useMutation({
+  const deleteMutation = useMutation<BulkDeleteResponse>({
     mutationFn: async () => {
       const res = await api.delete("/logs/bulk", { data: { log_ids: [parseInt(id!)] } });
       return res.data;
@@ -87,8 +88,7 @@ export function BackupLogDetail() {
           <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight break-words">Log Details: #{log.id}</h2>
           <div className="flex flex-wrap items-center gap-2 mt-1">
             <span className="text-muted-foreground text-sm sm:text-base break-all min-w-0">{log.nas_id} • {log.job_name}</span>
-            {log.status === "SUCCESS" && <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20"><CheckCircle2 className="w-3 h-3 mr-1" /> SUCCESS</Badge>}
-            {log.status === "FAILED" && <Badge variant="outline" className="bg-rose-500/10 text-rose-500 border-rose-500/20"><XCircle className="w-3 h-3 mr-1" /> FAILED</Badge>}
+            <BackupStatusBadge status={log.status} />
           </div>
         </div>
       </div>
@@ -213,7 +213,7 @@ export function BackupLogDetail() {
               </div>
               <div className="min-w-0">
                 <div className="font-medium text-muted-foreground">Errors</div>
-                <div className={log.error_count > 0 ? "text-destructive font-bold break-words" : "break-words"}>
+                <div className={(log.error_count ?? 0) > 0 ? "text-destructive font-bold break-words" : "break-words"}>
                   {log.error_count != null ? log.error_count : "-"}
                 </div>
               </div>

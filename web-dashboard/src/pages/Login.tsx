@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { AxiosError } from "axios";
 import { Server } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -49,8 +50,8 @@ export function Login() {
       login(access_token, user);
       
       navigate("/dashboard");
-    } catch (err: any) {
-      if (err.response?.status === 401) {
+    } catch (err) {
+      if (err instanceof AxiosError && err.response?.status === 401) {
         setError("Invalid username or password");
       } else {
         setError("Failed to connect to the server");

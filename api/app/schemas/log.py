@@ -4,11 +4,18 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.models.backup_log import VALID_STATUSES
+from app.schemas._shared import BulkDeleteResponse, is_aware
 
-
-def _is_aware(value: datetime) -> bool:
-    """Return True when a datetime carries an explicit timezone offset."""
-    return value.tzinfo is not None and value.utcoffset() is not None
+__all__ = [
+    "LogIngest",
+    "LogIngestResponse",
+    "LogSummaryItem",
+    "LogDetail",
+    "PaginatedLogs",
+    "AcknowledgeRequest",
+    "BulkDeleteRequest",
+    "BulkDeleteResponse",
+]
 
 
 class LogIngest(BaseModel):
@@ -57,7 +64,7 @@ class LogIngest(BaseModel):
     @classmethod
     def timestamps_must_be_timezone_aware(cls, value: datetime | None) -> datetime | None:
         """Require explicit timezone offsets; the API stores instants in UTC."""
-        if value is not None and not _is_aware(value):
+        if value is not None and not is_aware(value):
             raise ValueError("datetime must include timezone information")
         return value
 
@@ -143,9 +150,3 @@ class BulkDeleteRequest(BaseModel):
     date_to: datetime | None = Field(
         None, description="Delete logs created on or before this datetime (UTC). Optional."
     )
-
-
-class BulkDeleteResponse(BaseModel):
-    """Result of a bulk delete operation."""
-
-    deleted_count: int = Field(..., description="Number of log rows permanently deleted.")
