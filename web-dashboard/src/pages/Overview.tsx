@@ -1,23 +1,26 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
-import { Server, Database, AlertCircle, CheckCircle2, XCircle, RefreshCw, Clock } from "lucide-react";
+import { Server, Database, AlertCircle, CheckCircle2, XCircle } from "lucide-react";
 import { api } from "@/lib/api";
 
 import { formatDistanceToNow } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AutoRefreshControl } from "@/components/AutoRefreshControl";
+import { PageHeader } from "@/components/PageHeader";
+import { STATUS_COLORS, freshnessColor } from "@/lib/status";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import type { MonitorSummary, PaginatedLogs, ActivityTrendResponse } from "@/lib/types";
 
 export function Overview() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [autoRefresh, setAutoRefresh] = useState("10");
-  const refetchInterval = autoRefresh !== "0" ? parseInt(autoRefresh) * 1000 : false;
+  // Interval kept in milliseconds so it maps directly onto AutoRefreshControl.
+  const [autoRefreshMs, setAutoRefreshMs] = useState(10000);
+  const refetchInterval = autoRefreshMs !== 0 ? autoRefreshMs : false;
 
-  const summaryQuery = useQuery({
+  const summaryQuery = useQuery<MonitorSummary>({
     queryKey: ["monitor-summary"],
     queryFn: async () => {
       const res = await api.get("/monitor/summary");
@@ -27,7 +30,7 @@ export function Overview() {
   });
   const { data: summary, isLoading: loadingSummary, isError: summaryError } = summaryQuery;
 
-  const logsQuery = useQuery({
+  const logsQuery = useQuery<PaginatedLogs>({
     queryKey: ["logs", "failed-recent"],
     queryFn: async () => {
       const res = await api.get("/logs", {
@@ -39,7 +42,7 @@ export function Overview() {
   });
   const { data: logsData, isLoading: loadingLogs, isError: logsError } = logsQuery;
 
-  const activityQuery = useQuery({
+  const activityQuery = useQuery<ActivityTrendResponse>({
     queryKey: ["monitor-activity"],
     queryFn: async () => {
       const res = await api.get("/monitor/activity-trend");
@@ -74,47 +77,20 @@ export function Overview() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-end">
-        <div>
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Dashboard Overview</h2>
-          <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base hidden sm:block">
-            Monitor your NAS backup fleet and Ceph storage cluster.
-          </p>
-        </div>
-        <div className="flex items-center gap-4 text-sm text-muted-foreground hidden lg:flex">
-          {summaryQuery.dataUpdatedAt > 0 && (
-            <span className="flex items-center gap-1">
-              <Clock className="w-3 h-3" />
-              Last updated: {new Date(summaryQuery.dataUpdatedAt).toLocaleTimeString()}
-            </span>
-          )}
-          <div className="flex items-center gap-2 border-l pl-4 border-border">
-            <span className="text-xs">Auto Refresh:</span>
-            <Select value={autoRefresh} onValueChange={setAutoRefresh}>
-              <SelectTrigger className="h-8 w-[80px] text-xs bg-background">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="0">Off</SelectItem>
-                <SelectItem value="10">10s</SelectItem>
-                <SelectItem value="30">30s</SelectItem>
-                <SelectItem value="60">1m</SelectItem>
-                <SelectItem value="300">5m</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-8 w-8 bg-background"
-              onClick={handleManualRefresh}
-              disabled={isRefetching}
-              title="Refresh Now"
-            >
-              <RefreshCw className={`h-3 w-3 ${isRefetching ? "animate-spin" : ""}`} />
-            </Button>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        className="sm:items-end"
+        title="Dashboard Overview"
+        description="Monitor your NAS backup fleet and Ceph storage cluster."
+        actions={
+          <AutoRefreshControl
+            valueMs={autoRefreshMs}
+            onChangeMs={setAutoRefreshMs}
+            onRefresh={handleManualRefresh}
+            isFetching={isRefetching}
+            lastUpdatedAt={summaryQuery.dataUpdatedAt}
+          />
+        }
+      />
 
       {/* Summary Cards */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
@@ -159,13 +135,13 @@ export function Overview() {
               <div className="h-8 animate-pulse bg-muted rounded" />
             ) : (
               <div className="flex gap-2 text-sm mt-1">
-                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20">
+                <Badge variant="outline" className={STATUS_COLORS.success}>
                   {summary?.nas_fresh || 0} Fresh
                 </Badge>
-                <Badge variant="outline" className="bg-amber-500/10 text-amber-500 border-amber-500/20">
+                <Badge variant="outline" className={STATUS_COLORS.warn}>
                   {summary?.nas_stale || 0} Stale
                 </Badge>
-                <Badge variant="outline" className="bg-rose-500/10 text-rose-500 border-rose-500/20">
+                <Badge variant="outline" className={STATUS_COLORS.danger}>
                   {summary?.nas_offline || 0} Offline
                 </Badge>
               </div>
@@ -208,10 +184,7 @@ export function Overview() {
                   <span>Sync:</span>
                   <Badge
                     variant="outline"
-                    className={`h-5 text-[10px] px-1.5 ${summary?.ceph_status === 'fresh' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
-                      summary?.ceph_status === 'stale' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
-                        'bg-rose-500/10 text-rose-500 border-rose-500/20'
-                      }`}
+                    className={`h-5 text-[10px] px-1.5 ${freshnessColor(summary?.ceph_status)}`}
                   >
                     {summary?.ceph_status ? summary.ceph_status.charAt(0).toUpperCase() + summary.ceph_status.slice(1) : 'Offline'}
                   </Badge>
@@ -282,7 +255,7 @@ export function Overview() {
               </div>
             ) : (
               <div className="space-y-4 max-h-[380px] overflow-y-auto pr-2 custom-scrollbar">
-                {logsData?.items?.map((log: any) => (
+                {logsData?.items?.map((log) => (
                   <Link key={log.id} to={`/dashboard/logs/${log.id}`} className="block">
                     <div className="flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-muted/50 cursor-pointer transition-colors">
                       <div>
@@ -296,11 +269,6 @@ export function Overview() {
                         <div className="text-sm text-muted-foreground mt-1">
                           Job: {log.job_name} • {formatDistanceToNow(new Date(log.created_at), { addSuffix: true })}
                         </div>
-                        {log.message && (
-                          <div className="text-sm text-destructive mt-1 font-mono break-all">
-                            {log.message}
-                          </div>
-                        )}
                       </div>
                     </div>
                   </Link>
@@ -334,12 +302,11 @@ export function Overview() {
                   <BarChart
                     data={activityData?.days || []}
                     margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                    // Recharts click payload is loosely typed at the library boundary.
                     onClick={(state: any) => {
-                      if (state && state.activePayload && state.activePayload.length > 0) {
-                        const clickedDate = state.activePayload[0].payload.date;
-                        if (clickedDate) {
-                          navigate(`/dashboard/logs?date=${clickedDate}`);
-                        }
+                      const clickedDate = state?.activePayload?.[0]?.payload?.date;
+                      if (clickedDate) {
+                        navigate(`/dashboard/logs?date=${clickedDate}`);
                       }
                     }}
                     style={{ cursor: 'pointer' }}
@@ -379,7 +346,7 @@ export function Overview() {
                       fill="#10b981"
                       radius={[0, 0, 4, 4]}
                       onClick={(data: any) => {
-                        if (data && data.date) {
+                        if (data?.date) {
                           navigate(`/dashboard/logs?date=${data.date}`);
                         }
                       }}
@@ -392,7 +359,7 @@ export function Overview() {
                       fill="#f43f5e"
                       radius={[4, 4, 0, 0]}
                       onClick={(data: any) => {
-                        if (data && data.date) {
+                        if (data?.date) {
                           navigate(`/dashboard/logs?date=${data.date}`);
                         }
                       }}

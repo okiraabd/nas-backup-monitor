@@ -25,6 +25,9 @@ import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth";
+import { AxiosError } from "axios";
+import { PageHeader } from "@/components/PageHeader";
+import type { UserOut } from "@/lib/types";
 
 const formSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters").max(64),
@@ -60,7 +63,7 @@ export function Users() {
   const [reactivateConfirm, setReactivateConfirm] = useState<{id: number, username: string} | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const { data: users, isLoading } = useQuery({
+  const { data: users, isLoading } = useQuery<UserOut[]>({
     queryKey: ["users", showInactive],
     queryFn: async () => {
       const res = await api.get("/users", { params: { include_inactive: showInactive } });
@@ -98,16 +101,16 @@ export function Users() {
   };
 
   const createMutation = useMutation({
-    mutationFn: async (values: any) => {
+    mutationFn: async (values: z.infer<typeof formSchema>) => {
       const res = await api.post("/users", values);
-      return { user: res.data, password: values.password };
+      return { user: res.data as UserOut, password: values.password };
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       setCreateOpen(false);
       form.reset();
       if (data.user.role === "service" || data.user.role === "collector") {
-        setTokenResult({ username: data.user.username, token: data.password });
+        setTokenResult({ username: data.user.username, token: data.password ?? "" });
       }
     },
   });
@@ -162,8 +165,9 @@ export function Users() {
       resetForm.reset();
       setResetPasswordError("");
     },
-    onError: (err: any) => {
-      setResetPasswordError(err.response?.data?.detail || "Failed to reset password.");
+    onError: (err) => {
+      const detail = err instanceof AxiosError ? err.response?.data?.detail : undefined;
+      setResetPasswordError(detail || "Failed to reset password.");
     },
   });
 
@@ -193,14 +197,11 @@ export function Users() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-3 sm:gap-4">
-        <div>
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">User Management</h2>
-          <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base hidden sm:block">
-            Manage admin accounts, NAS service accounts, and collectors.
-          </p>
-        </div>
-        
+      <PageHeader
+        className="gap-3 sm:gap-4"
+        title="User Management"
+        description="Manage admin accounts, NAS service accounts, and collectors."
+        actions={
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger asChild>
             <Button>
@@ -312,7 +313,8 @@ export function Users() {
             </Form>
           </DialogContent>
         </Dialog>
-      </div>
+        }
+      />
 
       <Dialog open={!!tokenResult} onOpenChange={(open) => !open && setTokenResult(null)}>
         <DialogContent>
@@ -429,7 +431,7 @@ export function Users() {
                 <Label className="text-sm font-medium">Password Method</Label>
                 <RadioGroup 
                   value={passwordMethod} 
-                  onValueChange={(val: any) => setPasswordMethod(val)}
+                  onValueChange={(val) => setPasswordMethod(val as "manual" | "generate")}
                   className="flex flex-col space-y-2"
                 >
                   <div className="flex items-center space-x-2">
@@ -549,7 +551,7 @@ export function Users() {
                   <TableRow>
                     <TableCell colSpan={6} className="h-24 text-center">Loading...</TableCell>
                   </TableRow>
-                ) : users?.filter((u: any) => 
+                ) : users?.filter((u) => 
                     (roleFilter === "ALL" || u.role === roleFilter) &&
                     (!searchQuery || 
                      u.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -565,13 +567,13 @@ export function Users() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  users?.filter((u: any) => 
+                  users?.filter((u) => 
                     (roleFilter === "ALL" || u.role === roleFilter) &&
                     (!searchQuery || 
                      u.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
                      u.display_name.toLowerCase().includes(searchQuery.toLowerCase())
                     )
-                  ).map((user: any) => (
+                  ).map((user) => (
                     <TableRow key={user.id}>
                       <TableCell className="font-medium font-mono text-xs sm:text-sm">{user.username}</TableCell>
                       <TableCell className="hidden md:table-cell">{user.display_name}</TableCell>

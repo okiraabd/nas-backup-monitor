@@ -1,36 +1,23 @@
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient, useIsFetching } from "@tanstack/react-query";
-import { Server, Activity, Cpu, MemoryStick, HardDrive, Clock, RefreshCw } from "lucide-react";
+import { Server, Activity, Cpu, MemoryStick, HardDrive, Clock } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatDateTimeWib, formatTimeWib } from "@/lib/datetime";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { formatBytes } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
+import { TIMEFRAME_OPTIONS } from "@/lib/constants";
+import { AutoRefreshControl } from "@/components/AutoRefreshControl";
+import { PageHeader } from "@/components/PageHeader";
+import { MetricAreaChart } from "@/components/MetricAreaChart";
+import type { NasListResponse, SourceSnapshot, MetricHistory } from "@/lib/types";
 
 const METRIC_LABELS: Record<string, string> = {
   cpu_usage: "CPU Usage",
   ram_used_pct: "Memory Usage",
   disk_used_pct: "Disk Usage",
 };
-
-const TIMEFRAME_OPTIONS = [
-  { label: "1h", value: 1 },
-  { label: "6h", value: 6 },
-  { label: "12h", value: 12 },
-  { label: "24h", value: 24 },
-  { label: "7d", value: 168 },
-  { label: "30d", value: 720 },
-];
 
 function formatUptimeSeconds(value: number | null | undefined) {
   if (value === null || value === undefined || !Number.isFinite(value)) return "N/A";
@@ -50,7 +37,7 @@ export function MonitorNas() {
   const [autoRefresh, setAutoRefresh] = useState<number>(10000);
   const queryClient = useQueryClient();
 
-  const { data: nasList, isLoading: loadingList, dataUpdatedAt } = useQuery({
+  const { data: nasList, isLoading: loadingList, dataUpdatedAt } = useQuery<NasListResponse>({
     queryKey: ["nas-list"],
     queryFn: async () => {
       const res = await api.get("/monitor/nas");
@@ -70,73 +57,53 @@ export function MonitorNas() {
 
   // Auto-select first NAS
   useEffect(() => {
-    if (nasList?.items?.length > 0 && !selectedNas) {
+    if (nasList?.items?.length && !selectedNas) {
       setSelectedNas(nasList.items[0].source_id);
     }
   }, [nasList, selectedNas]);
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4">
-        <div>
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">NAS Monitoring</h2>
-          <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base hidden sm:block">
-            Real-time metrics and health status of all registered NAS endpoints.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-4 mr-2 text-sm text-muted-foreground hidden lg:flex">
-            {dataUpdatedAt > 0 && (
-              <span className="flex items-center gap-1">
-                <Clock className="w-3 h-3" /> 
-                Last updated: {new Date(dataUpdatedAt).toLocaleTimeString()}
-              </span>
-            )}
-            <div className="flex items-center gap-2 border-l pl-4 border-border">
-              <span className="text-xs">Auto Refresh:</span>
-              <Select value={autoRefresh.toString()} onValueChange={(v) => setAutoRefresh(Number(v))}>
-                <SelectTrigger className="h-8 w-[80px] text-xs bg-background">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="0">Off</SelectItem>
-                  <SelectItem value="10000">10s</SelectItem>
-                  <SelectItem value="30000">30s</SelectItem>
-                  <SelectItem value="60000">1m</SelectItem>
-                  <SelectItem value="300000">5m</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button variant="outline" size="icon" className="h-8 w-8 bg-background" onClick={handleRefresh} disabled={isFetching}>
-                <RefreshCw className={`h-3 w-3 ${isFetching ? "animate-spin" : ""}`} />
-              </Button>
-            </div>
-          </div>
-          <Select 
-            value={selectedNas || ""} 
-            onValueChange={setSelectedNas}
-            disabled={loadingList || nasList?.items?.length === 0}
-          >
-            <SelectTrigger className="w-full sm:w-64 bg-background">
-              <Server className="w-4 h-4 mr-2 text-muted-foreground" />
-              <SelectValue placeholder="Select NAS Device" />
-            </SelectTrigger>
-            <SelectContent>
-              {nasList?.items?.map((nas: any) => (
-                <SelectItem key={nas.source_id} value={nas.source_id}>
-                  <div className="flex items-center justify-between w-full pr-2">
-                    <span>{nas.source_id}</span>
-                    <div className="ml-4 flex items-center">
-                      {nas.status === "fresh" && <div className="h-2 w-2 rounded-full bg-emerald-500" title="Fresh"></div>}
-                      {nas.status === "stale" && <div className="h-2 w-2 rounded-full bg-amber-500" title="Stale"></div>}
-                      {nas.status === "offline" && <div className="h-2 w-2 rounded-full bg-rose-500" title="Offline"></div>}
+      <PageHeader
+        title="NAS Monitoring"
+        description="Real-time metrics and health status of all registered NAS endpoints."
+        actions={
+          <div className="flex items-center gap-2">
+            <AutoRefreshControl
+              className="mr-2"
+              valueMs={autoRefresh}
+              onChangeMs={setAutoRefresh}
+              onRefresh={handleRefresh}
+              isFetching={isFetching}
+              lastUpdatedAt={dataUpdatedAt}
+            />
+            <Select
+              value={selectedNas || ""}
+              onValueChange={setSelectedNas}
+              disabled={loadingList || nasList?.items?.length === 0}
+            >
+              <SelectTrigger className="w-full sm:w-64 bg-background">
+                <Server className="w-4 h-4 mr-2 text-muted-foreground" />
+                <SelectValue placeholder="Select NAS Device" />
+              </SelectTrigger>
+              <SelectContent>
+                {nasList?.items?.map((nas) => (
+                  <SelectItem key={nas.source_id} value={nas.source_id}>
+                    <div className="flex items-center justify-between w-full pr-2">
+                      <span>{nas.source_id}</span>
+                      <div className="ml-4 flex items-center">
+                        {nas.status === "fresh" && <div className="h-2 w-2 rounded-full bg-emerald-500" title="Fresh"></div>}
+                        {nas.status === "stale" && <div className="h-2 w-2 rounded-full bg-amber-500" title="Stale"></div>}
+                        {nas.status === "offline" && <div className="h-2 w-2 rounded-full bg-rose-500" title="Offline"></div>}
+                      </div>
                     </div>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        }
+      />
 
       {!selectedNas ? (
         <Card className="h-full min-h-[400px] flex items-center justify-center border-dashed">
@@ -155,7 +122,7 @@ export function MonitorNas() {
 function NasDetailView({ nasId, autoRefresh }: { nasId: string, autoRefresh: number }) {
   const [hours, setHours] = useState(1);
 
-  const { data: snapshot, isLoading: loadingSnap } = useQuery({
+  const { data: snapshot, isLoading: loadingSnap } = useQuery<SourceSnapshot>({
     queryKey: ["nas", nasId, "snapshot"],
     queryFn: async () => {
       const res = await api.get(`/monitor/nas/${nasId}`);
@@ -167,8 +134,8 @@ function NasDetailView({ nasId, autoRefresh }: { nasId: string, autoRefresh: num
   const getMetricValue = (name: string) => {
     if (!snapshot?.metrics || !snapshot.metrics[name]) return "N/A";
     const m = snapshot.metrics[name];
-    if (m.value !== null) return `${m.value}${m.unit ? m.unit : ''}`;
-    if (m.text !== null) return m.text;
+    if (m.value != null) return `${m.value}${m.unit ? m.unit : ''}`;
+    if (m.text != null) return m.text;
     return "N/A";
   };
 
@@ -228,7 +195,7 @@ function NasDetailView({ nasId, autoRefresh }: { nasId: string, autoRefresh: num
                 <HardDrive className="h-5 w-5 text-primary" />
               </div>
             </div>
-            {snapshot?.metrics?.storage_used_bytes && snapshot?.metrics?.storage_total_bytes && (
+            {snapshot?.metrics?.storage_used_bytes?.value != null && snapshot?.metrics?.storage_total_bytes?.value != null && (
               <p className="text-xs text-muted-foreground mt-2">
                 {formatBytes(snapshot.metrics.storage_used_bytes.value)} / {formatBytes(snapshot.metrics.storage_total_bytes.value)}
               </p>
@@ -263,7 +230,7 @@ function NasDetailView({ nasId, autoRefresh }: { nasId: string, autoRefresh: num
 }
 
 function MetricChart({ nasId, metric, hours, setHours, autoRefresh }: { nasId: string, metric: string, hours: number, setHours: (h: number) => void, autoRefresh: number }) {
-  const { data: history, isLoading: loadingHist } = useQuery({
+  const { data: history, isLoading: loadingHist } = useQuery<MetricHistory>({
     queryKey: ["nas", nasId, "history", metric, hours],
     queryFn: async () => {
       const res = await api.get(`/monitor/nas/${nasId}/history`, { params: { metric, hours } });
@@ -272,10 +239,10 @@ function MetricChart({ nasId, metric, hours, setHours, autoRefresh }: { nasId: s
     refetchInterval: autoRefresh === 0 ? false : autoRefresh,
   });
 
-  const chartData = history?.points?.map((p: any) => ({
+  const chartData = history?.points?.map((p) => ({
     time: formatTimeWib(p.collected_at),
     fullDate: formatDateTimeWib(p.collected_at),
-    value: p.value,
+    value: p.value ?? null,
   })).reverse() || [];
 
   const title = METRIC_LABELS[metric] || metric.replace(/_/g, " ");
@@ -316,47 +283,14 @@ function MetricChart({ nasId, metric, hours, setHours, autoRefresh }: { nasId: s
           </div>
         ) : (
           <div className="h-[250px] w-full mt-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: -20 }}>
-                <defs>
-                  <linearGradient id={`colorValue-${metric}`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                <XAxis 
-                  dataKey="time" 
-                  stroke="hsl(var(--muted-foreground))" 
-                  fontSize={12} 
-                  tickLine={false} 
-                  axisLine={false} 
-                />
-                <YAxis 
-                  stroke="hsl(var(--muted-foreground))" 
-                  fontSize={12} 
-                  tickLine={false} 
-                  axisLine={false}
-                  tickFormatter={(value) => `${value}${isPercentage ? '%' : ''}`}
-                />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))" }}
-                  labelStyle={{ color: "hsl(var(--foreground))", fontWeight: "bold" }}
-                  itemStyle={{ color: "hsl(var(--primary))" }}
-                  labelFormatter={(label, entries) => entries[0]?.payload.fullDate || label}
-                  formatter={(value: any) => [`${value}${isPercentage ? '%' : ''}`, title]}
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="value" 
-                  stroke="hsl(var(--primary))" 
-                  fillOpacity={1}
-                  fill={`url(#colorValue-${metric})`}
-                  strokeWidth={2} 
-                  activeDot={{ r: 6, fill: "hsl(var(--primary))", stroke: "hsl(var(--background))", strokeWidth: 2 }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            <MetricAreaChart
+              data={chartData}
+              label={title}
+              isPercentage={isPercentage}
+              gradientId={`colorValue-${metric}`}
+              marginLeft={-20}
+              showActiveDot
+            />
           </div>
         )}
       </CardContent>
