@@ -143,3 +143,4 @@ snmp-exporter/.secrets/
 .gemini/
 .claude/
 test_auth.py
+REVIEW.md
