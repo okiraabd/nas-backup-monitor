@@ -84,6 +84,15 @@ def client():
     app.dependency_overrides.clear()
 
 
+@pytest.fixture()
+def db_session():
+    db = TestingSessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
 def _token(client: TestClient, username: str, password: str) -> str:
     resp = client.post("/api/auth/login", json={"username": username, "password": password})
     assert resp.status_code == 200, resp.text

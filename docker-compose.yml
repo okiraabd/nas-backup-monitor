@@ -43,6 +43,9 @@ services:
       AUTO_SEED: ${AUTO_SEED:-false}
       REPORTS_DIR: ${REPORTS_DIR:-/app/generated_reports}
       APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Jakarta}
+      METRIC_RETENTION_DAYS: ${METRIC_RETENTION_DAYS:-30}
+      METRIC_CLEANUP_INTERVAL_SECONDS: ${METRIC_CLEANUP_INTERVAL_SECONDS:-3600}
+      METRIC_CLEANUP_BATCH_SIZE: ${METRIC_CLEANUP_BATCH_SIZE:-10000}
       API_HOST: 0.0.0.0
       API_PORT: 8000
     volumes:
@@ -65,6 +68,20 @@ services:
     ports:
       - "${WEB_HOST_PORT:-80}:80"
 
+  metric-cleanup:
+    build: ./api
+    container_name: bm_metric_cleanup
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    entrypoint: ["python", "-m", "app.metric_cleanup"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://backup_monitor:backup_monitor_pw@postgres:5432/backup_monitor}
+      METRIC_RETENTION_DAYS: ${METRIC_RETENTION_DAYS:-30}
+      METRIC_CLEANUP_INTERVAL_SECONDS: ${METRIC_CLEANUP_INTERVAL_SECONDS:-3600}
+      METRIC_CLEANUP_BATCH_SIZE: ${METRIC_CLEANUP_BATCH_SIZE:-10000}
+
   collector:
     build: ./collector
     container_name: bm_collector
@@ -76,7 +93,7 @@ services:
       API_URL: http://api:8000/api
       COLLECTOR_USERNAME: ${COLLECTOR_USERNAME:-collector}
       COLLECTOR_PASSWORD: ${COLLECTOR_PASSWORD:-collector123}
-      COLLECTOR_INTERVAL_SECONDS: ${COLLECTOR_INTERVAL_SECONDS:-60}
+      COLLECTOR_INTERVAL_SECONDS: ${COLLECTOR_INTERVAL_SECONDS:-10}
       USE_MOCK_METRICS: ${USE_MOCK_METRICS:-false}
       SNMP_EXPORTER_URL: ${SNMP_EXPORTER_URL:-}
       SNMP_DEFAULT_MODULE: ${SNMP_DEFAULT_MODULE:-if_mib}

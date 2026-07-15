@@ -16,7 +16,7 @@ load_dotenv()
 API_URL = os.getenv("API_URL", "http://localhost:8000/api")
 USERNAME = os.getenv("COLLECTOR_USERNAME", "collector")
 PASSWORD = os.getenv("COLLECTOR_PASSWORD", "collector123")
-INTERVAL = int(os.getenv("COLLECTOR_INTERVAL_SECONDS", 60))
+INTERVAL = int(os.getenv("COLLECTOR_INTERVAL_SECONDS", 10))
 USE_MOCK_METRICS = os.getenv("USE_MOCK_METRICS", "false").lower() == "true"
 SNMP_EXPORTER_URL = os.getenv("SNMP_EXPORTER_URL", "").strip() or None
 SNMP_DEFAULT_MODULE = os.getenv("SNMP_DEFAULT_MODULE", "if_mib").strip()

@@ -6,8 +6,9 @@ Freshness thresholds (computed by the API, never the frontend):
     offline = staleness > 300 seconds, or no data at all
 """
 from datetime import datetime, timezone
+from math import ceil
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, aliased
 
 from app.models.metric import SOURCE_CEPH, SOURCE_NAS, Metric
@@ -122,35 +123,77 @@ def metric_history(
     *,
     date_from: datetime | None = None,
     date_to: datetime | None = None,
+    max_points: int = 300,
 ) -> list[dict]:
     """Return time-ordered history points for one metric of one source.
 
-    When ``date_from`` or ``date_to`` are provided, ``limit`` is ignored and
-    all matching rows in the time range are returned.
+    Range queries are sampled evenly inside the database and always retain the
+    first and last sample. Non-range queries preserve the existing latest-N
+    behavior controlled by ``limit``.
     """
-    q = (
-        select(Metric)
-        .where(
-            Metric.source_type == source_type,
-            Metric.source_id == source_id,
-            Metric.metric_name == metric_name,
-        )
-        .order_by(Metric.collected_at.desc())
+    filters = (
+        Metric.source_type == source_type,
+        Metric.source_id == source_id,
+        Metric.metric_name == metric_name,
     )
     if date_from is not None:
-        q = q.where(Metric.collected_at >= date_from)
+        filters += (Metric.collected_at >= date_from,)
     if date_to is not None:
-        q = q.where(Metric.collected_at <= date_to)
-    if date_from is None and date_to is None:
-        q = q.limit(limit)
+        filters += (Metric.collected_at <= date_to,)
 
-    rows = db.scalars(q).all()
+    point_columns = (Metric.collected_at, Metric.metric_value, Metric.metric_text)
+    is_range_query = date_from is not None or date_to is not None
+
+    if not is_range_query:
+        rows = db.execute(
+            select(*point_columns)
+            .where(*filters)
+            .order_by(Metric.collected_at.desc(), Metric.id.desc())
+            .limit(limit)
+        ).all()
+        rows.reverse()
+    else:
+        total = db.scalar(select(func.count(Metric.id)).where(*filters)) or 0
+        if total <= max_points:
+            rows = db.execute(
+                select(*point_columns)
+                .where(*filters)
+                .order_by(Metric.collected_at.asc(), Metric.id.asc())
+            ).all()
+        else:
+            stride = ceil((total - 1) / (max_points - 1))
+            ranked = (
+                select(
+                    *point_columns,
+                    func.row_number()
+                    .over(order_by=(Metric.collected_at.asc(), Metric.id.asc()))
+                    .label("point_number"),
+                )
+                .where(*filters)
+                .subquery()
+            )
+            rows = db.execute(
+                select(
+                    ranked.c.collected_at,
+                    ranked.c.metric_value,
+                    ranked.c.metric_text,
+                )
+                .where(
+                    or_(
+                        ranked.c.point_number == 1,
+                        ranked.c.point_number == total,
+                        (ranked.c.point_number - 1) % stride == 0,
+                    )
+                )
+                .order_by(ranked.c.collected_at.asc(), ranked.c.point_number.asc())
+            ).all()
+
     points = [
         {
-            "collected_at": m.collected_at,
-            "value": float(m.metric_value) if m.metric_value is not None else None,
-            "text": m.metric_text,
+            "collected_at": row.collected_at,
+            "value": float(row.metric_value) if row.metric_value is not None else None,
+            "text": row.metric_text,
         }
-        for m in reversed(rows)  # chronological ascending for charts
+        for row in rows
     ]
     return points

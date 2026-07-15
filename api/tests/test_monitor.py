@@ -1,5 +1,7 @@
 """Monitoring endpoint tests."""
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+
+from app.models.metric import Metric
 
 
 class TestMonitorIngest:
@@ -101,6 +103,38 @@ class TestMonitorRead:
         )
         assert resp.status_code == 200
         assert resp.json()["metric_name"] == "cpu_usage"
+
+    def test_time_range_history_is_downsampled_and_keeps_boundaries(
+        self, client, admin_headers, db_session
+    ):
+        source_id = "downsample-history-test"
+        start = datetime.now(timezone.utc) - timedelta(minutes=100)
+        db_session.add_all(
+            Metric(
+                collected_at=start + timedelta(seconds=index * 10),
+                source_type="nas",
+                source_id=source_id,
+                metric_name="cpu_usage",
+                metric_value=index,
+                unit="%",
+            )
+            for index in range(600)
+        )
+        db_session.commit()
+
+        resp = client.get(
+            f"/api/monitor/nas/{source_id}/history?metric=cpu_usage&hours=2&max_points=100",
+            headers=admin_headers,
+        )
+
+        assert resp.status_code == 200
+        points = resp.json()["points"]
+        assert 2 <= len(points) <= 100
+        assert points[0]["value"] == 0.0
+        assert points[-1]["value"] == 599.0
+        assert [point["collected_at"] for point in points] == sorted(
+            point["collected_at"] for point in points
+        )
 
     def test_ceph_snapshot(self, client, admin_headers):
         resp = client.get("/api/monitor/ceph", headers=admin_headers)

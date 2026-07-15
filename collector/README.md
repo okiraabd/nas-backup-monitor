@@ -54,7 +54,7 @@ root proyek.
 | API_URL | http://localhost:8000/api | Base URL API tanpa slash akhir. Dalam Compose gunakan http://api:8000/api. |
 | COLLECTOR_USERNAME | collector | Akun API dengan role collector. |
 | COLLECTOR_PASSWORD | collector123 | Password akun collector. Ganti di production. |
-| COLLECTOR_INTERVAL_SECONDS | 60 | Jeda polling dalam detik. |
+| COLLECTOR_INTERVAL_SECONDS | 10 | Jeda setelah satu siklus selesai, dalam detik. |
 | USE_MOCK_METRICS | false | true untuk mode demo. |
 | SNMP_EXPORTER_URL | kosong | Base endpoint centralized /snmp; kosong mengaktifkan mode legacy. |
 | SNMP_DEFAULT_MODULE | if_mib | Module fallback target. |

@@ -71,7 +71,7 @@ WIB (Asia/Jakarta); lihat [Batasan penting](#batasan-penting).
 | [nas-scripts](nas-scripts/README.md) | Reporter aman di NAS untuk merekonsiliasi snapshot Kopia dan mengirim backup log. |
 | [snmp-exporter](snmp-exporter/README.md) | Template module SNMP Exporter untuk Synology dan WD PR4100. |
 | [snmp-exporter/mibs](snmp-exporter/mibs/README.md) | Panduan penyimpanan MIB vendor saat menghasilkan konfigurasi exporter. |
-| docker-compose.yml | Stack lokal/mandiri: PostgreSQL, API, dashboard, collector, dan profile SNMP Exporter opsional. |
+| docker-compose.yml | Stack lokal/mandiri: PostgreSQL, API, metric cleanup, dashboard, collector, dan profile SNMP Exporter opsional. |
 
 ## Mulai cepat dengan Docker Compose
 
@@ -192,6 +192,9 @@ Nilai bertanda production harus diputuskan sebelum deployment.
 | CORS_ORIGINS | localhost origins | Origin browser yang diizinkan API. |
 | SEED_MODE | none | none, users, atau demo. |
 | REPORTS_DIR | /app/generated_reports | Lokasi report di container API; dipetakan ke volume reports. |
+| METRIC_RETENTION_DAYS | 30 | Umur maksimum metric history. |
+| METRIC_CLEANUP_INTERVAL_SECONDS | 3600 | Jeda antar cleanup metric. |
+| METRIC_CLEANUP_BATCH_SIZE | 10000 | Batas penghapusan per transaksi. |
 
 API menolak startup production bila SEED_MODE=demo, AUTO_SEED=true legacy, atau
 JWT_SECRET_KEY masih lemah/default. APP_ENV=prod juga diperlakukan sebagai
@@ -218,7 +221,7 @@ web-dashboard/.env.local bila API lokal memakai alamat lain.
 | Variabel | Keterangan |
 |---|---|
 | COLLECTOR_USERNAME / COLLECTOR_PASSWORD | Kredensial akun berperan collector. Harus sama dengan akun aktif pada API. |
-| COLLECTOR_INTERVAL_SECONDS | Jeda polling collector, default 60 detik. |
+| COLLECTOR_INTERVAL_SECONDS | Jeda setelah satu siklus collector selesai, default 10 detik. |
 | USE_MOCK_METRICS | true menghasilkan metrik demo tanpa menghubungi NAS/Ceph. |
 | SNMP_EXPORTER_URL | Endpoint centralized /snmp. Kosong berarti mode exporter legacy per target. |
 | SNMP_DEFAULT_MODULE | Module fallback apabila target tidak menyebutkan module. |
@@ -344,11 +347,13 @@ Setelah perubahan Dockerfile atau kode service, gunakan docker compose up -d
 
 ## Batasan penting
 
-- Tidak ada mekanisme retention atau agregasi metric history pada aplikasi.
-  Tabel metrics akan terus bertambah; rencanakan retensi/arsip di tingkat
-  operasional sebelum production jangka panjang. Backup log dan report dapat
-  dihapus manual oleh admin, tetapi metric history belum memiliki endpoint
-  purge khusus.
+- Service metric-cleanup menghapus metric lebih tua dari METRIC_RETENTION_DAYS
+  dalam batch. Default retensi adalah 30 hari, interval cleanup satu jam, dan
+  batch 10000 baris. Pantau ukuran database dan sesuaikan nilainya dengan
+  jumlah sumber serta cadence collector.
+- History rentang waktu dibatasi lewat max_points (default 300) dengan sampling
+  merata agar respons grafik tetap terkontrol. Data mentah tetap tersimpan sampai
+  melewati masa retensi.
 - Jika SNMP atau Ceph tidak dapat diakses, collector tetap mengirim metrik
   fallback dengan reachability 0 bila API dapat dijangkau. Periksa metrik
   reachability, bukan hanya status proses collector.

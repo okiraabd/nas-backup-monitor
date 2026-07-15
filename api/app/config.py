@@ -2,7 +2,7 @@
 from functools import lru_cache
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     auto_seed: bool = False
     reports_dir: str = "/app/generated_reports"
     app_timezone: str = "Asia/Jakarta"
+    metric_retention_days: int = Field(30, ge=1, le=3650)
+    metric_cleanup_interval_seconds: int = Field(3600, ge=60, le=86400)
+    metric_cleanup_batch_size: int = Field(10000, ge=100, le=100000)
 
     @property
     def is_production(self) -> bool:

@@ -115,6 +115,9 @@ Lihat root .env.example untuk seluruh variabel service.
 | AUTO_SEED | Fallback legacy; true diperlakukan sebagai mode demo bila SEED_MODE kosong. |
 | REPORTS_DIR | Direktori penyimpanan PDF, default /app/generated_reports. |
 | APP_TIMEZONE | Zona IANA untuk batas hari report/tren, default Asia/Jakarta. |
+| METRIC_RETENTION_DAYS | Umur maksimum metric history, default 30 hari. |
+| METRIC_CLEANUP_INTERVAL_SECONDS | Interval worker cleanup, default 3600 detik. |
+| METRIC_CLEANUP_BATCH_SIZE | Jumlah maksimum baris per transaksi cleanup, default 10000. |
 
 Ketika APP_ENV adalah prod atau production, aplikasi gagal start jika:
 
@@ -424,21 +427,22 @@ menghapus file PDF report yang sudah pernah dibuat dari log tersebut.
 | GET /api/monitor/activity-trend | admin, operator | Tren log SUCCESS/FAILED tujuh hari kalender lokal terakhir. |
 | GET /api/monitor/nas | admin, operator | Snapshot metric terbaru semua NAS. |
 | GET /api/monitor/nas/{nas_id} | admin, operator | Snapshot terbaru satu NAS. |
-| GET /api/monitor/nas/{nas_id}/history | admin, operator | History satu metric NAS; parameter metric, limit, hours, date_from, dan date_to. |
+| GET /api/monitor/nas/{nas_id}/history | admin, operator | History satu metric NAS; parameter metric, limit, hours, date_from, date_to, dan max_points. |
 | GET /api/monitor/ceph | admin, operator | Snapshot terbaru Ceph; source_id opsional default ceph-cluster. |
-| GET /api/monitor/ceph/history | admin, operator | History metric Ceph; metric, limit, hours, date_from, date_to, dan source_id opsional. |
+| GET /api/monitor/ceph/history | admin, operator | History metric Ceph; metric, limit, hours, date_from, date_to, max_points, dan source_id opsional. |
 | GET /api/monitor/collector/status | admin, operator, collector | Hasil collector run terbaru. |
 | POST /api/monitor/collector/run | collector | Mencatat satu collector run selesai. |
 | POST /api/monitor/collector/run-once | admin, operator | Menambahkan marker PENDING, bukan mengeksekusi process collector langsung. |
 
 Setiap metric dalam request ingest disimpan sebagai satu baris. Metric numeric
-menjadi metric_value dan metric string menjadi metric_text. Tidak ada
-deduplikasi atau retensi automatic untuk metric history.
+menjadi metric_value dan metric string menjadi metric_text. Service
+metric-cleanup menghapus data yang melewati METRIC_RETENTION_DAYS secara
+periodik dan bertahap.
 
 History endpoint memakai limit 1 sampai 500 ketika tidak ada filter waktu. Jika
-hours dikirim, API menghitung date_from sebagai waktu sekarang dikurangi N jam
-dan mengabaikan limit. date_from/date_to dapat dipakai untuk mengambil seluruh
-titik dalam rentang tertentu.
+hours dikirim, API menghitung date_from sebagai waktu sekarang dikurangi N jam.
+Rentang waktu disampling merata di database hingga max_points (default 300,
+maksimum 1000), dengan titik pertama dan terakhir selalu dipertahankan.
 
 Freshness dihitung di server dari metric terbaru per sumber:
 
