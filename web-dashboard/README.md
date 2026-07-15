@@ -39,6 +39,19 @@ item, pilihan banyak item, atau periode tanggal WIB yang dikonversi frontend ke
 rentang UTC. Report dapat dihapus per item, pilihan banyak item, atau periode
 tanggal generate; API menginterpretasikan periode report menurut APP_TIMEZONE.
 
+### Pola refresh data
+
+Dashboard overview, Backup Logs, NAS Monitoring, dan Ceph Monitoring memakai
+auto-refresh 10 detik secara default. Kontrol desktop menyediakan pilihan Off,
+10 detik, 30 detik, 1 menit, dan 5 menit serta tombol refresh manual. TanStack
+Query tidak menjalankan interval saat tab browser berada di background kecuali
+opsi background polling diaktifkan secara eksplisit.
+
+Halaman Collector Status memeriksa status setiap 2 detik agar permintaan Run
+once cepat terlihat. Endpoint history NAS/Ceph belum mengirim `max_points`
+secara eksplisit, tetapi API terbaru menerapkan default 300 dan melakukan
+sampling di database sebelum hasil dikirim ke grafik.
+
 ## Teknologi
 
 - React 19 dan TypeScript.
@@ -194,6 +207,8 @@ Lakukan smoke test manual terhadap:
 - redirect 401 serta logout;
 - filter tanggal/log, acknowledge failure, dan pagination;
 - halaman NAS, Ceph, serta status collector;
+- auto-refresh, pilihan interval, refresh manual, dan penghentian polling saat
+  tab browser berada di background;
 - generate/download report;
 - delete backup log/report sebagai admin, termasuk pilihan banyak item dan
   periode;

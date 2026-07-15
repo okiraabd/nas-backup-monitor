@@ -29,6 +29,11 @@ dashboard membuat marker PENDING melalui endpoint run-once, collector keluar
 dari masa tunggu dan menjalankan siklus baru. Tombol dashboard tidak dapat
 menjalankan container collector secara langsung.
 
+`COLLECTOR_INTERVAL_SECONDS` adalah jeda setelah seluruh scrape dan pengiriman
+selesai, bukan jadwal absolut. Karena itu cadence aktual adalah durasi siklus
+ditambah jeda 10 detik. Siklus tidak tumpang tindih; target yang lambat akan
+membuat pembaruan berikutnya ikut lebih lambat.
+
 Token 401 ketika ingest membuat collector login lagi pada siklus selanjutnya.
 Collector tidak mempunyai persistent retry queue; kegagalan request akan dicoba
 lagi pada interval berikutnya.
@@ -65,6 +70,11 @@ Kredensial collector harus cocok dengan user aktif di API. Saat memakai seed
 demo, nilainya adalah collector dan collector123. Jika .env menggunakan
 placeholder seperti my_collector_user, buat/rotasi user yang sesuai terlebih
 dahulu atau collector akan mendapat 401.
+
+Default 10 detik menghasilkan enam kali lebih banyak sample dibanding interval
+60 detik. Gunakan service `metric-cleanup` dari stack terbaru, pantau ukuran
+PostgreSQL, dan naikkan interval bila perangkat atau jaringan tidak mampu
+menyelesaikan scrape secara konsisten.
 
 ### Format NAS_TARGETS
 
@@ -273,3 +283,4 @@ HTTP response.
 | Ceph health UNKNOWN | Cek CEPH_METRICS_URL dan akses ke endpoint mgr Prometheus. |
 | Collector tidak merespons Run once | Pastikan daemon hidup; ia memeriksa marker PENDING ketika menunggu interval. |
 | Metric tetap mock | Periksa USE_MOCK_METRICS, rebuild/recreate container, lalu lihat is_mock pada status collector. |
+| Jarak sample lebih dari 10 detik | Ini normal bila scrape/pengiriman memakan waktu; periksa timeout dan durasi respons tiap target. |

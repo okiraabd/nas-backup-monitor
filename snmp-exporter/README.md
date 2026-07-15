@@ -86,6 +86,11 @@ SNMP_EXPORTER_URL=http://snmp-exporter:9116/snmp?auth=kkp_snmp_v2
 NAS_TARGETS=synology-ds1522|192.168.24.5|synology_nas,wd-pr4100|192.168.24.4|wd_pr4100
 ~~~
 
+Collector saat ini menunggu 10 detik setelah setiap siklus selesai. Pastikan
+semua target dapat di-scrape konsisten pada cadence tersebut; naikkan
+`COLLECTOR_INTERVAL_SECONDS` bila SNMP Exporter atau NAS menunjukkan timeout
+atau beban berlebih.
+
 SNMP_EXPORTER_HOST_BIND dan SNMP_EXPORTER_HOST_PORT di root .env hanya
 mengontrol akses dari host untuk troubleshooting. Jangan ubah bind menjadi
 0.0.0.0 tanpa firewall dan kebutuhan yang jelas.
@@ -190,6 +195,7 @@ serta metric snmp_reachable di dashboard.
 | auth profile tidak ditemukan | Nama auth pada URL harus cocok dengan bagian auths dalam snmp.yml. |
 | Metric vendor tidak muncul | Periksa MIB/firmware, module yang dipilih, dan hasil generator. |
 | Disk atau temperatur 0 di dashboard | Bandingkan output /snmp dengan metric fallback yang didukung collector. |
+| Sample lebih lambat dari interval collector | Ukur durasi `/snmp`; cadence aktual mencakup waktu scrape seluruh target ditambah jeda collector. |
 | Exporter dapat diakses dari jaringan luas | Kembalikan bind host ke localhost atau pasang ACL/firewall/reverse proxy. |
 
 ## Checklist keamanan

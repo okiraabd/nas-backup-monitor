@@ -2,8 +2,10 @@
 
 API adalah pusat data NAS & Ceph Backup Monitor. Service FastAPI ini
 mengautentikasi seluruh klien, menyimpan data ke PostgreSQL, menghitung status
-monitoring, dan membuat PDF report. Tidak ada komponen lain yang boleh
-mengakses database secara langsung.
+monitoring, dan membuat PDF report. Direktori API juga menyediakan worker
+`metric-cleanup` yang memakai model database yang sama untuk retensi metrik.
+Selain API dan worker internal tersebut, komponen lain tidak mengakses database
+secara langsung.
 
 Dokumentasi sistem dan cara menjalankan stack ada di
 [README root](../README.md).
@@ -13,17 +15,20 @@ Dokumentasi sistem dan cara menjalankan stack ada di
 - Mengeluarkan dan memvalidasi JWT untuk pengguna dashboard dan machine account.
 - Menerima backup log dari reporter Kopia NAS.
 - Menerima metric batch serta status siklus dari collector.
-- Menyajikan log, status monitoring, history, dan tren untuk dashboard.
+- Menyajikan log, status monitoring, history, dan tren untuk client web/mobile.
 - Menghasilkan, menyimpan metadata, mengunduh, dan menghapus PDF report.
 - Menyediakan operasi admin untuk pembersihan backup log/report dan manajemen
   akun.
 - Menjalankan migrasi Alembic ketika container dimulai.
+- Menyediakan worker terpisah untuk menghapus metric history yang kedaluwarsa
+  dalam transaksi berbatas.
 
 ~~~text
 Reporter NAS ── POST /api/logs/ingest ─┐
 Collector ──── POST /api/monitor/* ───┼──► FastAPI ───► PostgreSQL
-Dashboard ──── HTTP /api/* ───────────┘       │
+Web/mobile ─── HTTP /api/* ───────────┘       │
                                               └──► generated_reports/
+Metric cleanup ── SQLAlchemy batch ──────────────► PostgreSQL
 ~~~
 
 ## Teknologi dan struktur
@@ -45,6 +50,7 @@ api/
 │   ├── models/        # ORM SQLAlchemy
 │   ├── services/      # Auth, monitoring, report/PDF
 │   ├── config.py      # Settings dari environment
+│   ├── metric_cleanup.py  # Entrypoint worker retensi metrik
 │   ├── timezone.py    # Konversi batas tanggal lokal ↔ UTC
 │   └── main.py        # App FastAPI, CORS, dan OpenAPI
 ├── alembic/           # Konfigurasi dan riwayat migrasi
@@ -62,7 +68,7 @@ Cara yang direkomendasikan adalah menjalankan dari root proyek:
 ~~~bash
 cp .env.example .env
 # Edit kredensial, JWT_SECRET_KEY, dan SEED_MODE.
-docker compose up -d --build postgres api
+docker compose up -d --build postgres api metric-cleanup
 curl http://localhost:8000/health
 ~~~
 
@@ -81,6 +87,12 @@ Container API melakukan urutan berikut:
 3. Menjalankan seed sesuai SEED_MODE.
 4. Memulai Uvicorn pada port 8000.
 
+Service Compose `metric-cleanup` memakai image API yang sama tetapi menjalankan
+`python -m app.metric_cleanup`. Ia menunggu API sehat, melakukan cleanup pertama
+saat start, lalu tidur sesuai `METRIC_CLEANUP_INTERVAL_SECONDS`. Worker ini tidak
+membuka port dan kegagalannya tidak menghentikan API; periksa lognya secara
+terpisah.
+
 ### Local tanpa Docker
 
 Anda memerlukan Python 3.12 dan PostgreSQL yang dapat dijangkau. Setel
@@ -96,6 +108,16 @@ alembic upgrade head
 python -m app.seed users
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ~~~
+
+Untuk menjalankan retensi metric pada instalasi lokal, buka terminal kedua
+dengan virtual environment dan `DATABASE_URL` yang sama:
+
+~~~bash
+cd api
+python -m app.metric_cleanup
+~~~
+
+Proses tersebut berjalan terus-menerus; hentikan dengan Ctrl+C saat development.
 
 Jangan gunakan kredensial atau JWT secret contoh pada environment production.
 Lihat root .env.example untuk seluruh variabel service.
@@ -115,9 +137,9 @@ Lihat root .env.example untuk seluruh variabel service.
 | AUTO_SEED | Fallback legacy; true diperlakukan sebagai mode demo bila SEED_MODE kosong. |
 | REPORTS_DIR | Direktori penyimpanan PDF, default /app/generated_reports. |
 | APP_TIMEZONE | Zona IANA untuk batas hari report/tren, default Asia/Jakarta. |
-| METRIC_RETENTION_DAYS | Umur maksimum metric history, default 30 hari. |
-| METRIC_CLEANUP_INTERVAL_SECONDS | Interval worker cleanup, default 3600 detik. |
-| METRIC_CLEANUP_BATCH_SIZE | Jumlah maksimum baris per transaksi cleanup, default 10000. |
+| METRIC_RETENTION_DAYS | Umur maksimum metric history, default 30 hari; rentang valid 1-3650. |
+| METRIC_CLEANUP_INTERVAL_SECONDS | Interval worker cleanup, default 3600 detik; rentang valid 60-86400. |
+| METRIC_CLEANUP_BATCH_SIZE | Jumlah maksimum baris per transaksi cleanup, default 10000; rentang valid 100-100000. |
 
 Ketika APP_ENV adalah prod atau production, aplikasi gagal start jika:
 
@@ -300,9 +322,9 @@ token version-nya masih cocok. Setelah itu API:
 3. Mengembalikan token baru serta profil user.
 
 Dengan demikian, token lama tidak dapat digunakan ulang setelah refresh.
-Dashboard saat ini tidak memanggil refresh otomatis; pengguna login kembali
-ketika token habis atau API mengembalikan 401. Collector mendapat token baru
-dengan login pada siklus berikutnya ketika diperlukan. Tidak ada endpoint
+Client web dan mobile saat ini tidak memanggil refresh token otomatis; pengguna
+login kembali ketika token habis atau API mengembalikan 401. Collector mendapat
+token baru dengan login pada siklus berikutnya ketika diperlukan. Tidak ada
 refresh token jangka panjang.
 
 #### Invalidasi seluruh token satu user
@@ -432,12 +454,17 @@ menghapus file PDF report yang sudah pernah dibuat dari log tersebut.
 | GET /api/monitor/ceph/history | admin, operator | History metric Ceph; metric, limit, hours, date_from, date_to, max_points, dan source_id opsional. |
 | GET /api/monitor/collector/status | admin, operator, collector | Hasil collector run terbaru. |
 | POST /api/monitor/collector/run | collector | Mencatat satu collector run selesai. |
-| POST /api/monitor/collector/run-once | admin, operator | Menambahkan marker PENDING, bukan mengeksekusi process collector langsung. |
+| POST /api/monitor/collector/run-once | admin, operator | Menambahkan marker PENDING, bukan mengeksekusi proses collector langsung. |
 
 Setiap metric dalam request ingest disimpan sebagai satu baris. Metric numeric
 menjadi metric_value dan metric string menjadi metric_text. Service
 metric-cleanup menghapus data yang melewati METRIC_RETENTION_DAYS secara
 periodik dan bertahap.
+
+Worker memilih baris paling lama sebelum cutoff, menghapus paling banyak
+`METRIC_CLEANUP_BATCH_SIZE` per transaksi, lalu melanjutkan batch sampai tidak
+ada data kedaluwarsa. Dengan default saat ini, retensi adalah 30 hari, cleanup
+berulang setiap 3600 detik, dan satu batch berisi paling banyak 10000 baris.
 
 History endpoint memakai limit 1 sampai 500 ketika tidak ada filter waktu. Jika
 hours dikirim, API menghitung date_from sebagai waktu sekarang dikurangi N jam.
@@ -542,8 +569,9 @@ docker compose run --rm --no-deps --entrypoint python api -m pytest -q
 
 Suite menggunakan PostgreSQL-independent SQLite in-memory dengan StaticPool,
 mengganti dependency database FastAPI, dan membuat user/data fixture sendiri.
-Ia menguji konfigurasi, autentikasi/revocation, user, logs, monitoring, report,
-dan batas timezone tanpa mengubah database Compose.
+Ia menguji konfigurasi, autentikasi/revocation, user, logs, monitoring,
+downsampling history, retensi metric, report, dan batas timezone tanpa mengubah
+database Compose.
 
 Untuk menjalankan lokal setelah mengaktifkan virtual environment:
 
@@ -562,6 +590,8 @@ pytest -q
 | 422 pada ingest | Validasi payload, status SUCCESS/FAILED, batas field, dan timestamp ber-offset. |
 | PDF download mengembalikan 410 | File tidak lagi ada di REPORTS_DIR/volume reports meski metadata database masih ada. |
 | CORS browser gagal | Tambahkan origin dashboard yang tepat ke CORS_ORIGINS, lalu rebuild/restart API. |
+| Metric lama tidak terhapus | Periksa `docker compose logs metric-cleanup`, DATABASE_URL worker, dan nilai METRIC_RETENTION_DAYS. |
+| Worker cleanup terus gagal | Pastikan migrasi API sudah selesai, database dapat dijangkau, dan batch size berada pada batas konfigurasi. |
 
 Untuk masalah yang melibatkan reporter atau collector, lihat README komponen
 masing-masing agar konektivitas dan kredensial machine account dapat dicek dari

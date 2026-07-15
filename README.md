@@ -10,8 +10,8 @@ Proyek ini adalah sistem observabilitas dan pelaporan, bukan mesin backup:
 - NAS reporter hanya membaca hasil snapshot Kopia dan mengirimkannya ke API.
 - Collector hanya membaca metrik dari SNMP Exporter dan endpoint Prometheus
   Ceph.
-- PostgreSQL hanya diakses oleh API; browser, reporter, dan collector tidak
-  pernah mengaksesnya langsung.
+- PostgreSQL hanya diakses oleh komponen backend tepercaya: API dan worker
+  `metric-cleanup`. Browser, reporter, dan collector selalu memakai API.
 
 ## Daftar isi
 
@@ -47,15 +47,22 @@ NAS SNMP ── UDP/161 ──► SNMP Exporter ── HTTP /snmp ──► Metr
 Ceph mgr Prometheus ─────────────────── HTTP /metrics ─► Metric Collector
 ~~~
 
-Tiga aliran utama bekerja secara independen:
+Empat proses utama bekerja secara independen:
 
 1. Reporter pada setiap NAS menjalankan pembacaan Kopia berkala. Snapshot baru
    menjadi backup log; gangguan sebelum snapshot terbentuk juga dikirim sebagai
    event FAILED.
 2. Collector berjalan terus-menerus. Ia mengumpulkan metrik NAS dan Ceph pada
    setiap interval, lalu mencatat hasil siklusnya.
-3. Dashboard menggunakan API berautentikasi untuk menampilkan status, mengulas
-   kegagalan, mengelola akun, dan membuat PDF report.
+3. Client web dan mobile menggunakan API berautentikasi untuk menampilkan
+   status, mengulas kegagalan, mengelola data sesuai role, dan membuat PDF
+   report.
+4. Worker `metric-cleanup` memakai model/database API untuk menghapus metrik
+   yang melewati masa retensi dalam batch, tanpa mengekspos endpoint baru.
+
+Aplikasi mobile pada repo terpisah `nas-backup-monitor-mobile` juga berkomunikasi
+langsung dengan FastAPI melalui HTTPS/HTTP; ia tidak memakai Nginx dashboard dan
+tidak mengakses PostgreSQL atau target monitoring.
 
 Semua instant waktu disimpan sebagai UTC. API menginterpretasikan periode
 laporan menurut APP_TIMEZONE. Dashboard saat ini secara eksplisit menampilkan
@@ -65,8 +72,9 @@ WIB (Asia/Jakarta); lihat [Batasan penting](#batasan-penting).
 
 | Lokasi | Tanggung jawab |
 |---|---|
-| [api](api/README.md) | FastAPI, JWT/RBAC, PostgreSQL, migrasi Alembic, log backup, metrik, dan PDF report. |
+| [api](api/README.md) | FastAPI, JWT/RBAC, PostgreSQL, migrasi Alembic, log backup, metrik, PDF report, dan worker retensi metrik. |
 | [web-dashboard](web-dashboard/README.md) | React SPA untuk operator dan admin, disajikan oleh Nginx di production. |
+| nas-backup-monitor-mobile (repo terpisah) | Client Expo/Android untuk admin dan operator; collector tidak ditampilkan di mobile. |
 | [collector](collector/README.md) | Daemon Python yang mengubah output SNMP Exporter dan Ceph Prometheus menjadi metrik dashboard. |
 | [nas-scripts](nas-scripts/README.md) | Reporter aman di NAS untuk merekonsiliasi snapshot Kopia dan mengirim backup log. |
 | [snmp-exporter](snmp-exporter/README.md) | Template module SNMP Exporter untuk Synology dan WD PR4100. |
@@ -118,20 +126,25 @@ curl http://localhost:8000/health
 
 Layanan default:
 
-| Layanan | Alamat default |
-|---|---|
-| Dashboard | http://localhost |
-| API | http://localhost:8000 |
-| OpenAPI / Swagger | http://localhost:8000/docs |
-| Liveness API | http://localhost:8000/health |
+| Layanan | Alamat default | Keterangan |
+|---|---|---|
+| Dashboard | http://localhost | React SPA melalui Nginx. |
+| API | http://localhost:8000 | FastAPI untuk seluruh client. |
+| OpenAPI / Swagger | http://localhost:8000/docs | Kontrak API interaktif. |
+| Liveness API | http://localhost:8000/health | Probe tanpa autentikasi. |
+| PostgreSQL | localhost:5433 | Port host untuk administrasi; client aplikasi tidak memakainya. |
+| Collector | tidak membuka port | Mengirim metrik ke API setiap siklus. |
+| Metric cleanup | tidak membuka port | Menghapus metrik kedaluwarsa secara periodik. |
 
 Startup API menunggu PostgreSQL, menjalankan seluruh migrasi Alembic, kemudian
-menjalankan seed sesuai SEED_MODE. Gunakan log berikut bila sebuah service belum
+menjalankan seed sesuai `SEED_MODE`. Collector dan `metric-cleanup` baru dimulai
+setelah health check API berhasil. Gunakan log berikut bila sebuah service belum
 siap:
 
 ~~~bash
 docker compose logs -f api
 docker compose logs -f collector
+docker compose logs -f metric-cleanup
 ~~~
 
 ## Akun awal dan peran
@@ -283,6 +296,7 @@ docker compose ps
 docker compose exec api alembic current
 curl http://localhost:8000/health
 docker compose logs --tail=100 collector
+docker compose logs --tail=100 metric-cleanup
 ~~~
 
 Hal yang perlu diperiksa pada dashboard:
@@ -308,6 +322,10 @@ Cadangkan PostgreSQL secara teratur dengan mekanisme PostgreSQL yang sesuai
 dengan kebijakan organisasi, dan cadangkan volume reports jika PDF harus
 dipertahankan. Uji proses restore pada lingkungan terpisah. Jangan gunakan
 docker compose down -v kecuali memang ingin menghapus kedua volume tersebut.
+
+Metric history tidak disimpan tanpa batas. Worker `metric-cleanup` menghapus
+baris yang lebih tua dari `METRIC_RETENTION_DAYS` (default 30 hari), dimulai saat
+worker start lalu diulang setiap `METRIC_CLEANUP_INTERVAL_SECONDS`.
 
 Admin dapat menghapus backup log dan report melalui dashboard/API, baik per
 item, pilihan banyak item, maupun periode. Operasi itu permanen pada database
@@ -337,9 +355,10 @@ Perintah berikut dijalankan dari root proyek.
 | Dashboard build | cd web-dashboard && npm ci && npm run build |
 | Reporter NAS | Lihat perintah container test pada README NAS reporter. |
 
-Test API memakai SQLite in-memory dan tidak memerlukan PostgreSQL. Test
-collector dan reporter menguji parser/normalisasi dengan fixture serta mock;
-keduanya tidak menghubungi perangkat nyata.
+Test API memakai SQLite in-memory dan tidak memerlukan PostgreSQL, termasuk test
+sampling history serta batch retention. Test collector dan reporter menguji
+parser/normalisasi dengan fixture serta mock; keduanya tidak menghubungi
+perangkat nyata.
 
 Untuk mengembangkan service tertentu, lihat README di direktori komponen.
 Setelah perubahan Dockerfile atau kode service, gunakan docker compose up -d
@@ -347,11 +366,11 @@ Setelah perubahan Dockerfile atau kode service, gunakan docker compose up -d
 
 ## Batasan penting
 
-- Service metric-cleanup menghapus metric lebih tua dari METRIC_RETENTION_DAYS
+- Service `metric-cleanup` menghapus metrik lebih tua dari `METRIC_RETENTION_DAYS`
   dalam batch. Default retensi adalah 30 hari, interval cleanup satu jam, dan
   batch 10000 baris. Pantau ukuran database dan sesuaikan nilainya dengan
   jumlah sumber serta cadence collector.
-- History rentang waktu dibatasi lewat max_points (default 300) dengan sampling
+- History rentang waktu dibatasi lewat `max_points` (default 300) dengan sampling
   merata agar respons grafik tetap terkontrol. Data mentah tetap tersimpan sampai
   melewati masa retensi.
 - Jika SNMP atau Ceph tidak dapat diakses, collector tetap mengirim metrik
