@@ -150,6 +150,19 @@ class TestPasswordAndToken:
         finally:
             client.delete(f"/api/users/{uid}", headers=admin_headers)
 
+    def test_generate_password_for_self_is_rejected(self, client, admin_headers):
+        users = client.get("/api/users", headers=admin_headers).json()
+        admin = next(user for user in users if user["username"] == "admin")
+
+        resp = client.post(
+            f"/api/users/{admin['id']}/password/generate",
+            headers=admin_headers,
+        )
+
+        assert resp.status_code == 400
+        assert "own active account" in resp.json()["detail"]
+        assert client.get("/api/auth/me", headers=admin_headers).status_code == 200
+
     def test_generate_password_admin_allowed(self, client, admin_headers):
         created = client.post(
             "/api/users",

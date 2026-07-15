@@ -279,7 +279,7 @@ def reset_password(
 def generate_random_password(
     user_id: int,
     db: Session = Depends(get_db),
-    _current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_admin),
 ) -> GeneratedPasswordResponse:
     """Generate a new password for an account (shown once).
 
@@ -288,6 +288,14 @@ def generate_random_password(
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
+    if user.id == current_user.id:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "You cannot generate a password for your own active account. "
+                "Enter a password manually."
+            ),
+        )
     # Plaintext is returned once; only the bcrypt hash is stored.
     new_password = generate_password()
     user.password_hash = hash_password(new_password)

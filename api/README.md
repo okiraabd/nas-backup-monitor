@@ -340,7 +340,7 @@ menaikkan token_version pada operasi berikut:
 | Operasi | Dampak |
 |---|---|
 | PATCH /api/users/{id}/password | Password diubah dan seluruh token user menjadi tidak valid. |
-| POST /api/users/{id}/password/generate | Password acak baru dibuat dan ditampilkan sekali; seluruh token lama user invalid. |
+| POST /api/users/{id}/password/generate | Password acak baru dibuat dan ditampilkan sekali; seluruh token lama user invalid. Admin tidak dapat memakai operasi ini untuk akunnya sendiri. |
 | PATCH /api/users/{id} dengan is_active=false | User dinonaktifkan dan seluruh token lama invalid. |
 | DELETE /api/users/{id} | User dihapus permanen bila tidak punya data terkait, atau dinonaktifkan dan token lama invalid bila data historis perlu dipertahankan. |
 
@@ -498,10 +498,11 @@ Freshness dihitung di server dari metric terbaru per sumber:
 | PATCH /api/users/{user_id} | admin | Ubah display name, role, atau aktif/nonaktif. |
 | DELETE /api/users/{user_id} | admin | Smart delete; hard-delete bila aman, soft-delete bila ada data terkait, force=true untuk hard-delete dengan FK dibuat NULL. |
 | PATCH /api/users/{user_id}/password | admin | Set password baru dan invalidate token lama. |
-| POST /api/users/{user_id}/password/generate | admin | Buat password acak baru sekali tampil dan invalidate token lama. |
+| POST /api/users/{user_id}/password/generate | admin | Buat password acak baru sekali tampil dan invalidate token lama; ditolak bila target adalah admin yang sedang login. |
 
-API melindungi dari hilangnya akses admin terakhir dan mencegah admin
-menonaktifkan/menghapus akses adminnya sendiri.
+API melindungi dari hilangnya akses admin terakhir, mencegah admin
+menonaktifkan/menghapus akses adminnya sendiri, dan mengharuskan reset manual
+ketika admin mengganti password akunnya sendiri.
 
 POST /api/reports/generate menerima date_from, date_to, nas_id opsional,
 custom_name opsional, dan sla_target 0 sampai 100 dengan default 99.5. custom_name

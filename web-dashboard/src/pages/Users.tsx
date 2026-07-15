@@ -45,9 +45,15 @@ const formSchema = z.object({
   }
 });
 
-const resetPasswordSchema = z.object({
-  password: z.string().min(6, "Password must be at least 6 characters").max(128),
-});
+const resetPasswordSchema = z
+  .object({
+    password: z.string().min(6, "Password must be at least 6 characters").max(128),
+    confirm_password: z.string().min(1, "Confirm the new password"),
+  })
+  .refine((data) => data.password === data.confirm_password, {
+    message: "Passwords do not match",
+    path: ["confirm_password"],
+  });
 
 export function Users() {
   const { user: currentUser } = useAuth();
@@ -63,6 +69,7 @@ export function Users() {
   const [showInactive, setShowInactive] = useState(false);
   const [reactivateConfirm, setReactivateConfirm] = useState<{id: number, username: string} | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState("");
 
   const { data: users, isLoading } = useQuery<UserOut[]>({
     queryKey: ["users", showInactive],
@@ -88,11 +95,13 @@ export function Users() {
     resolver: zodResolver(resetPasswordSchema),
     defaultValues: {
       password: "",
+      confirm_password: "",
     },
   });
 
   const selectedRole = form.watch("role");
   const createPasswordMethod = form.watch("password_method");
+  const resettingSelf = resetPasswordTarget?.id === currentUser?.id;
 
   const generatePassword = () => {
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -156,7 +165,13 @@ export function Users() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       setResetPasswordTarget(null);
+      setCopied(false);
+      setCopyError("");
       setPasswordResult({ username: data.username, password: data.password, sessionsRevoked: true });
+    },
+    onError: (err) => {
+      const detail = err instanceof AxiosError ? err.response?.data?.detail : undefined;
+      setResetPasswordError(detail || "Failed to generate a password.");
     },
   });
 
@@ -164,11 +179,16 @@ export function Users() {
     mutationFn: async ({ id, password }: { id: number, password: string }) => {
       await api.patch(`/users/${id}/password`, { new_password: password });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["users"] });
+    onSuccess: (_data, variables) => {
       setResetPasswordTarget(null);
       resetForm.reset();
       setResetPasswordError("");
+      if (variables.id === currentUser?.id) {
+        localStorage.removeItem("token");
+        window.location.href = "/login?passwordChanged=1";
+        return;
+      }
+      queryClient.invalidateQueries({ queryKey: ["users"] });
     },
     onError: (err) => {
       const detail = err instanceof AxiosError ? err.response?.data?.detail : undefined;
@@ -182,11 +202,16 @@ export function Users() {
     }
   };
 
-  const handleCopyPassword = () => {
+  const handleCopyPassword = async () => {
     if (passwordResult?.password) {
-      navigator.clipboard.writeText(passwordResult.password);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      try {
+        await navigator.clipboard.writeText(passwordResult.password);
+        setCopyError("");
+        setCopied(true);
+      } catch {
+        setCopied(false);
+        setCopyError("Clipboard access failed. Select the password and copy it manually.");
+      }
     }
   };
 
@@ -349,7 +374,7 @@ export function Users() {
         }
       />
 
-      <Dialog open={!!passwordResult} onOpenChange={(open) => !open && setPasswordResult(null)}>
+      <Dialog open={!!passwordResult} onOpenChange={() => undefined}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>New Password Generated</DialogTitle>
@@ -372,8 +397,17 @@ export function Users() {
               {copied ? <Check className="h-6 w-6 text-emerald-500" /> : <Copy className="h-6 w-6" />}
             </Button>
           </div>
+          {copyError && <p className="text-sm text-destructive">{copyError}</p>}
           <DialogFooter>
-            <Button onClick={() => setPasswordResult(null)}>Close</Button>
+            <Button
+              onClick={() => {
+                setPasswordResult(null);
+                setCopied(false);
+                setCopyError("");
+              }}
+            >
+              I've saved it
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -441,7 +475,10 @@ export function Users() {
               Set a new password for <strong>{resetPasswordTarget?.username}</strong>{" "}
               (<span className="capitalize">{resetPasswordTarget?.role}</span>).
               <br /><br />
-              <span className="text-destructive font-medium">Warning:</span> All active sessions for this user will be immediately revoked and they must log in again.
+              <span className="text-destructive font-medium">Warning:</span>{" "}
+              {resettingSelf
+                ? "Your active sessions will be revoked and you will be signed out after saving."
+                : "All active sessions for this user will be immediately revoked and they must log in again."}
             </DialogDescription>
           </DialogHeader>
           
@@ -450,7 +487,7 @@ export function Users() {
               e.preventDefault();
               if (passwordMethod === "manual") {
                 resetForm.handleSubmit(onResetPasswordSubmit)(e);
-              } else {
+              } else if (!resettingSelf) {
                 if (resetPasswordTarget) {
                   generatePasswordMutation.mutate({ id: resetPasswordTarget.id, username: resetPasswordTarget.username });
                 }
@@ -460,42 +497,68 @@ export function Users() {
                 <div className="text-sm text-destructive bg-destructive/10 rounded-md p-3">{resetPasswordError}</div>
               )}
 
-              <div className="space-y-3">
-                <Label className="text-sm font-medium">Password Method</Label>
-                <RadioGroup 
-                  value={passwordMethod} 
-                  onValueChange={(val) => setPasswordMethod(val as "manual" | "generate")}
-                  className="flex flex-col space-y-2"
-                >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="manual" id="manual" />
-                    <Label htmlFor="manual" className="font-normal cursor-pointer">Input new password</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="generate" id="generate" />
-                    <Label htmlFor="generate" className="font-normal cursor-pointer">Generate random password</Label>
-                  </div>
-                </RadioGroup>
-              </div>
+              {resettingSelf ? (
+                <div className="bg-muted p-3 rounded-md border text-sm text-muted-foreground flex items-center gap-2">
+                  <Key className="h-4 w-4 shrink-0" />
+                  Enter your new password manually to avoid losing access to your account.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <Label className="text-sm font-medium">Password Method</Label>
+                  <RadioGroup
+                    value={passwordMethod}
+                    onValueChange={(val) => setPasswordMethod(val as "manual" | "generate")}
+                    className="flex flex-col space-y-2"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="manual" id="manual" />
+                      <Label htmlFor="manual" className="font-normal cursor-pointer">Input new password</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="generate" id="generate" />
+                      <Label htmlFor="generate" className="font-normal cursor-pointer">Generate random password</Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+              )}
               
               {passwordMethod === "manual" ? (
-                <FormField
-                  control={resetForm.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>New Password</FormLabel>
-                      <FormControl>
-                        <Input 
-                          type="password" 
-                          placeholder="Minimum 6 characters" 
-                          {...field} 
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <>
+                  <FormField
+                    control={resetForm.control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>New Password</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="password"
+                            placeholder="Minimum 6 characters"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={resetForm.control}
+                    name="confirm_password"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Confirm New Password</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="password"
+                            placeholder="Enter the new password again"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </>
               ) : (
                 <div className="bg-muted p-3 rounded-md border text-sm text-muted-foreground flex items-center gap-2">
                   <Key className="h-4 w-4 shrink-0" />
@@ -633,7 +696,11 @@ export function Users() {
                             title="Reset Password"
                             onClick={() => {
                               setResetPasswordTarget({ id: user.id, username: user.username, role: user.role });
-                              setPasswordMethod((user.role === "service" || user.role === "collector") ? "generate" : "manual");
+                              setPasswordMethod(
+                                user.id === currentUser?.id
+                                  ? "manual"
+                                  : (user.role === "service" || user.role === "collector") ? "generate" : "manual"
+                              );
                             }}
                             disabled={resetPasswordMutation.isPending || generatePasswordMutation.isPending}
                           >

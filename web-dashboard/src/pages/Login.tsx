@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { AxiosError } from "axios";
 import { Eye, EyeOff, Server } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -30,7 +30,9 @@ export function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { login } = useAuth();
+  const passwordChanged = searchParams.get("passwordChanged") === "1";
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -77,6 +79,11 @@ export function Login() {
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              {passwordChanged && (
+                <div className="rounded-md bg-emerald-500/15 p-3 text-sm text-emerald-700 font-medium text-center">
+                  Password changed successfully. Sign in with your new password.
+                </div>
+              )}
               {error && (
                 <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive font-medium text-center">
                   {error}
