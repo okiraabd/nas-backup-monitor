@@ -157,7 +157,7 @@ store. Di Compose, report disimpan pada volume Docker bernama reports.
 |---|---|
 | none | Tidak membuat data. Ini mode operasi normal setelah bootstrap. |
 | users | Membuat akun awal saja bila belum ada. |
-| demo | Membuat akun, backup logs, metrics, dan satu collector run contoh. |
+| demo | Membuat akun, 120 backup logs selama 30 hari, metrics, dan satu collector run contoh. |
 
 Akun seed:
 
@@ -169,7 +169,11 @@ Akun seed:
 | nas-wd | wd123 | service |
 | collector | collector123 | collector |
 
-Seed idempoten. Untuk menjalankan ulang secara manual:
+Seed idempoten. Dataset backup demo berisi empat job harian pada dua NAS: 107
+`SUCCESS` dan 13 `FAILED`; enam failure sudah acknowledged dan tujuh belum.
+Setiap log memakai `snapshot_id` deterministik, sehingga menjalankan seed lagi
+hanya menambahkan baris demo yang belum ada. Untuk menjalankan ulang secara
+manual:
 
 ~~~bash
 docker compose exec api python -m app.seed users

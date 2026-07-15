@@ -1,4 +1,4 @@
-"""Seed initial users and, optionally, a small demo dataset.
+"""Seed initial users and, optionally, a representative demo dataset.
 
 Idempotent: running twice will not duplicate users or demo rows. Run with:
     python -m app.seed users  # accounts only
@@ -27,6 +27,34 @@ SEED_USERS = [
 ]
 
 SEED_MODES = {"users", "demo"}
+DEMO_BACKUP_DAYS = 30
+
+# source_id, job_name, source_path, source_ip, service username, base bytes, base files
+DEMO_BACKUP_JOBS = (
+    (
+        "synology-ds1522", "backup-makuku", "/MAKUKU", "192.168.24.5",
+        "nas-synology", 154_241_124_981, 11_579,
+    ),
+    (
+        "synology-ds1522", "backup-hrd", "/HRD", "192.168.24.5",
+        "nas-synology", 52_480_000_000, 4_920,
+    ),
+    (
+        "wd-pr4100", "backup-finance", "/FINANCE", "192.168.24.4",
+        "nas-wd", 88_123_456_789, 6_540,
+    ),
+    (
+        "wd-pr4100", "backup-design", "/DESIGN", "192.168.24.4",
+        "nas-wd", 203_400_000_000, 20_345,
+    ),
+)
+
+DEMO_FAILURE_MESSAGES = (
+    "S3 endpoint timed out while uploading pack files",
+    "Kopia repository is locked by another maintenance task",
+    "Source path became unavailable during the snapshot",
+    "Insufficient temporary space for the snapshot cache",
+)
 
 
 def _now() -> datetime:
@@ -53,73 +81,95 @@ def seed_users(db: Session) -> dict[str, User]:
     return users
 
 
-def seed_backup_logs(db: Session, users: dict[str, User]) -> None:
-    """Create a handful of backup logs (mix of SUCCESS and FAILED)."""
-    if db.scalar(select(BackupLog).limit(1)) is not None:
-        return  # already seeded
-
-    syn = users["nas-synology"].id
-    wd = users["nas-wd"].id
+def seed_backup_logs(db: Session, users: dict[str, User]) -> int:
+    """Create 30 days of deterministic, idempotent backup history."""
     now = _now()
+    logs: list[BackupLog] = []
 
-    logs = [
-        BackupLog(
-            nas_id="synology-ds1522", job_name="backup-makuku", source_path="/MAKUKU",
-            source_ip="192.168.1.10", destination_target="Ceph S3", backup_engine="kopia",
-            status="SUCCESS", snapshot_id="05845bf9e1c2aeaf097fb906fd1eda28",
-            started_at=now - timedelta(hours=6), ended_at=now - timedelta(hours=6, seconds=-95),
-            duration_seconds=95, total_size_bytes=154241124981, total_files=11579,
-            changed_file_count=12, cached_files=11500, non_cached_files=79, dir_count=43,
-            error_count=0, ignored_error_count=0, retention_reason=["latest-5"],
-            message="Kopia snapshot completed successfully", raw_payload={"demo": True},
-            reported_by=syn,
-        ),
-        BackupLog(
-            nas_id="wd-pr4100", job_name="backup-finance", source_path="/FINANCE",
-            source_ip="192.168.1.11", destination_target="Ceph S3", backup_engine="kopia",
-            status="SUCCESS", snapshot_id="a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6",
-            started_at=now - timedelta(hours=5), ended_at=now - timedelta(hours=5, seconds=-140),
-            duration_seconds=140, total_size_bytes=88123456789, total_files=6540,
-            changed_file_count=30, cached_files=6480, non_cached_files=60, dir_count=88,
-            error_count=0, ignored_error_count=0, retention_reason=["latest-5", "weekly-4"],
-            message="Kopia snapshot completed successfully", raw_payload={"demo": True},
-            reported_by=wd,
-        ),
-        BackupLog(
-            nas_id="synology-ds1522", job_name="backup-hrd", source_path="/HRD",
-            source_ip="192.168.1.10", destination_target="Ceph S3", backup_engine="kopia",
-            status="FAILED", snapshot_id=None,
-            started_at=now - timedelta(hours=4), ended_at=now - timedelta(hours=4, seconds=-20),
-            duration_seconds=20, total_size_bytes=None, total_files=None,
-            error_count=3, ignored_error_count=0, retention_reason=None,
-            message="Failed to upload snapshot: S3 connection reset", raw_payload={"demo": True},
-            reported_by=syn, acknowledged=False,
-        ),
-        BackupLog(
-            nas_id="wd-pr4100", job_name="backup-design", source_path="/DESIGN",
-            source_ip="192.168.1.11", destination_target="Ceph S3", backup_engine="kopia",
-            status="SUCCESS", snapshot_id="f0e1d2c3b4a5968778695a4b3c2d1e0f",
-            started_at=now - timedelta(hours=3), ended_at=now - timedelta(hours=3, seconds=-210),
-            duration_seconds=210, total_size_bytes=203400000000, total_files=20345,
-            changed_file_count=105, cached_files=20200, non_cached_files=145, dir_count=310,
-            error_count=0, ignored_error_count=1, retention_reason=["latest-5"],
-            message="Kopia snapshot completed successfully", raw_payload={"demo": True},
-            reported_by=wd,
-        ),
-        BackupLog(
-            nas_id="synology-ds1522", job_name="backup-makuku", source_path="/MAKUKU",
-            source_ip="192.168.1.10", destination_target="Ceph S3", backup_engine="kopia",
-            status="FAILED", snapshot_id=None,
-            started_at=now - timedelta(hours=2), ended_at=now - timedelta(hours=2, seconds=-15),
-            duration_seconds=15, error_count=1, ignored_error_count=0,
-            message="Kopia repository locked by another process", raw_payload={"demo": True},
-            reported_by=syn, acknowledged=True, acknowledged_by=users["admin"].id,
-            acknowledged_at=now - timedelta(hours=1),
-            remark="Sudah dicek, proses backup lain masih berjalan. Aman.",
-        ),
-    ]
-    db.add_all(logs)
+    for day_offset in range(DEMO_BACKUP_DAYS):
+        for job_index, (
+            nas_id,
+            job_name,
+            source_path,
+            source_ip,
+            service_username,
+            base_size,
+            base_files,
+        ) in enumerate(DEMO_BACKUP_JOBS):
+            snapshot_id = f"demo-v2-{day_offset:02d}-{job_name}"
+            duration_seconds = 75 + ((day_offset * 31 + job_index * 47) % 420)
+            started_at = now - timedelta(
+                days=day_offset,
+                hours=job_index * 2 + 1,
+                minutes=(day_offset * 7 + job_index * 3) % 40,
+            )
+            ended_at = started_at + timedelta(seconds=duration_seconds)
+            failed = (day_offset + job_index * 2) % 9 == 0
+            acknowledged = failed and (day_offset + job_index) % 2 == 1
+            changed_files = 8 + ((day_offset * 17 + job_index * 29) % 180)
+            total_files = base_files + day_offset * 4 + job_index * 11
+            total_size = base_size + day_offset * 75_000_000 + job_index * 12_500_000
+
+            logs.append(
+                BackupLog(
+                    nas_id=nas_id,
+                    job_name=job_name,
+                    source_path=source_path,
+                    source_ip=source_ip,
+                    destination_target="Ceph S3",
+                    backup_engine="kopia",
+                    status="FAILED" if failed else "SUCCESS",
+                    snapshot_id=snapshot_id,
+                    started_at=started_at,
+                    ended_at=ended_at,
+                    duration_seconds=duration_seconds,
+                    total_size_bytes=None if failed else total_size,
+                    total_files=None if failed else total_files,
+                    changed_file_count=None if failed else changed_files,
+                    cached_files=None if failed else total_files - changed_files,
+                    non_cached_files=None if failed else changed_files,
+                    dir_count=None if failed else max(12, total_files // 65),
+                    error_count=1 + (day_offset % 3) if failed else 0,
+                    ignored_error_count=0 if failed else (day_offset + job_index) % 2,
+                    retention_reason=(
+                        None
+                        if failed
+                        else (["latest-5", "weekly-4"] if day_offset % 7 == 0 else ["latest-5"])
+                    ),
+                    message=(
+                        DEMO_FAILURE_MESSAGES[(day_offset + job_index) % len(DEMO_FAILURE_MESSAGES)]
+                        if failed
+                        else "Kopia snapshot completed successfully"
+                    ),
+                    raw_payload={
+                        "demo": True,
+                        "seed_version": 2,
+                        "day_offset": day_offset,
+                        "job_index": job_index,
+                    },
+                    reported_by=users[service_username].id,
+                    acknowledged=acknowledged,
+                    acknowledged_by=users["admin"].id if acknowledged else None,
+                    acknowledged_at=ended_at + timedelta(minutes=30) if acknowledged else None,
+                    remark=(
+                        "Reviewed by the demo administrator; a retry completed successfully."
+                        if acknowledged
+                        else None
+                    ),
+                    created_at=ended_at,
+                )
+            )
+
+    snapshot_ids = [log.snapshot_id for log in logs if log.snapshot_id is not None]
+    existing_ids = set(
+        db.scalars(
+            select(BackupLog.snapshot_id).where(BackupLog.snapshot_id.in_(snapshot_ids))
+        ).all()
+    )
+    new_logs = [log for log in logs if log.snapshot_id not in existing_ids]
+    db.add_all(new_logs)
     db.commit()
+    return len(new_logs)
 
 
 def seed_metrics(db: Session, users: dict[str, User]) -> None:
@@ -207,7 +257,8 @@ def run(mode: str = "demo") -> None:
             return
 
         print("Seeding backup logs...")
-        seed_backup_logs(db, users)
+        inserted_logs = seed_backup_logs(db, users)
+        print(f"Backup logs ready ({inserted_logs} new demo rows).")
         print("Seeding metrics...")
         seed_metrics(db, users)
         print("Seeding collector run...")

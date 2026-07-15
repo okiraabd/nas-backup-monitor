@@ -115,6 +115,11 @@ Pastikan DATABASE_URL konsisten dengan POSTGRES_USER, POSTGRES_PASSWORD, dan
 POSTGRES_DB pada file yang sama. Jangan gunakan password contoh ini di
 environment selain demo.
 
+`SEED_MODE=demo` menambahkan 120 backup logs yang tersebar selama 30 hari untuk
+empat job pada dua NAS. Dataset mencakup status berhasil/gagal serta failure yang
+sudah dan belum di-acknowledge. Seed menggunakan `snapshot_id` deterministik,
+jadi aman dijalankan ulang tanpa menggandakan baris demo.
+
 ### 2. Validasi dan jalankan
 
 ~~~bash
