@@ -20,6 +20,10 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import {
+  DASHBOARD_ACCESS_MESSAGE,
+  DashboardAccessError,
+} from "@/lib/dashboard-access";
 
 const formSchema = z.object({
   username: z.string().min(1, "Username is required"),
@@ -27,11 +31,13 @@ const formSchema = z.object({
 });
 
 export function Login() {
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const [error, setError] = useState(
+    searchParams.get("accessDenied") === "1" ? DASHBOARD_ACCESS_MESSAGE : "",
+  );
+  const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const { login } = useAuth();
   const passwordChanged = searchParams.get("passwordChanged") === "1";
 
@@ -55,7 +61,9 @@ export function Login() {
       
       navigate("/dashboard");
     } catch (err) {
-      if (err instanceof AxiosError && err.response?.status === 401) {
+      if (err instanceof DashboardAccessError) {
+        setError(err.message);
+      } else if (err instanceof AxiosError && err.response?.status === 401) {
         setError("Invalid username or password");
       } else {
         setError("Failed to connect to the server");

@@ -21,7 +21,7 @@ Untuk gambaran sistem dan cara menjalankan seluruh stack, lihat
 | Route | Halaman | Akses UI |
 |---|---|---|
 | /login | Login akun API. | Public |
-| /dashboard | Ringkasan backup, monitoring, failed logs, dan tren aktivitas. | User terautentikasi; API membatasi data ke admin/operator. |
+| /dashboard | Ringkasan backup, monitoring, failed logs, dan tren aktivitas. | Admin/operator; client menolak role machine sebelum menyimpan sesi. |
 | /dashboard/logs | Daftar backup log dengan filter, pagination, auto refresh, dan hapus admin-only. | Admin/operator melalui API; hapus hanya admin. |
 | /dashboard/logs/:id | Detail log, acknowledge FAILED, dan hapus admin-only. | Admin/operator melalui API; hapus hanya admin. |
 | /dashboard/monitor/nas | Snapshot dan history metric NAS. | Admin/operator melalui API. |
@@ -32,7 +32,8 @@ Untuk gambaran sistem dan cara menjalankan seluruh stack, lihat
 
 Sidebar menyembunyikan menu Users untuk non-admin. Otorisasi yang sebenarnya
 tetap dilakukan server. Machine account service/collector dapat memperoleh
-token API, tetapi endpoint dashboard akan mengembalikan 403 untuk mereka.
+token API untuk ingest, tetapi web dashboard menolak login mereka dengan pesan
+yang jelas dan endpoint dashboard tetap mengembalikan 403 sebagai pengaman.
 
 Aksi destruktif hanya ditampilkan untuk admin. Backup log dapat dihapus per
 item, pilihan banyak item, atau periode tanggal WIB yang dikonversi frontend ke
@@ -204,6 +205,7 @@ npm run build
 Lakukan smoke test manual terhadap:
 
 - login sebagai admin dan operator;
+- penolakan login dashboard untuk akun service dan collector;
 - redirect 401 serta logout;
 - filter tanggal/log, acknowledge failure, dan pagination;
 - halaman NAS, Ceph, serta status collector;

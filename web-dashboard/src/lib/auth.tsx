@@ -1,5 +1,9 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { api } from "./api";
+import {
+  DashboardAccessError,
+  isDashboardRole,
+} from "./dashboard-access";
 import type { User } from "./types";
 
 export type { User };
@@ -23,6 +27,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Verify token is still valid
       api.get("/auth/me")
         .then((res) => {
+          if (!isDashboardRole(res.data.role)) {
+            localStorage.removeItem("token");
+            setUser(null);
+            window.location.replace("/login?accessDenied=1");
+            return;
+          }
           setUser(res.data);
         })
         .catch(() => {
@@ -36,6 +46,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = (token: string, userData: User) => {
+    if (!isDashboardRole(userData.role)) {
+      localStorage.removeItem("token");
+      setUser(null);
+      throw new DashboardAccessError();
+    }
     localStorage.setItem("token", token);
     setUser(userData);
   };

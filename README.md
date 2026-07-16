@@ -186,8 +186,9 @@ Peran menentukan otorisasi API, bukan hanya menu dashboard.
 | Membaca status collector | ✓ | ✓ | – | ✓ |
 
 Machine account secara teknis dapat login untuk memperoleh token, tetapi tidak
-memiliki akses data dashboard. Jangan gunakan akun service atau collector untuk
-pengguna manusia.
+memiliki akses data dashboard. Web dan mobile dashboard menolak sesi role
+service/collector sebelum token disimpan, sementara API tetap mengembalikan 403
+pada endpoint dashboard. Jangan gunakan akun machine untuk pengguna manusia.
 
 ## Konfigurasi
 
