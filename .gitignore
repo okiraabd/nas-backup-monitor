@@ -144,4 +144,5 @@ snmp-exporter/.secrets/
 .claude/
 test_auth.py
 REVIEW.md
+CODE_REVIEW.md
 MOBILE_APP_PLAN.md
