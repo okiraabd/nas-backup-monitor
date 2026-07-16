@@ -3,9 +3,10 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { AxiosError } from "axios";
-import { Eye, EyeOff, Server } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
+import brandMark from "@/assets/nas-backup-monitor-mark.png";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -68,8 +69,12 @@ export function Login() {
     <div className="flex h-screen w-full items-center justify-center bg-muted/40 p-4">
       <Card className="w-full max-w-md shadow-lg border-primary/20">
         <CardHeader className="space-y-2 text-center pb-6 sm:pb-8">
-          <div className="mx-auto mb-2 sm:mb-4 flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-full bg-primary/10">
-            <Server className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
+          <div className="mx-auto mb-2 h-20 w-20 sm:mb-4 sm:h-24 sm:w-24">
+            <img
+              alt="NAS Backup Monitor"
+              className="h-full w-full object-contain"
+              src={brandMark}
+            />
           </div>
           <CardTitle className="text-2xl sm:text-3xl font-bold tracking-tight">Backup Monitor</CardTitle>
           <CardDescription>
