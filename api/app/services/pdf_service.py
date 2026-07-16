@@ -1,10 +1,12 @@
 """PDF generation using ReportLab — redesigned with SLA focus."""
 from datetime import date, datetime, timezone
+from xml.sax.saxutils import escape
 
 from reportlab.graphics.charts.barcharts import VerticalBarChart
 from reportlab.graphics.charts.piecharts import Pie
 from reportlab.graphics.shapes import Drawing, String
 from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
@@ -144,6 +146,19 @@ def build_report_pdf(
     )
     normal = styles["Normal"]
     small  = ParagraphStyle("small", parent=normal, fontSize=8, textColor=COLOR_MUTED)
+    failed_cell = ParagraphStyle(
+        "FailedBackupCell",
+        parent=normal,
+        fontSize=7,
+        leading=9,
+        spaceAfter=0,
+        spaceBefore=0,
+    )
+    failed_cell_center = ParagraphStyle(
+        "FailedBackupCellCenter",
+        parent=failed_cell,
+        alignment=TA_CENTER,
+    )
 
     doc = SimpleDocTemplate(
         file_path,
@@ -256,22 +271,41 @@ def build_report_pdf(
     if failed_logs:
         story.append(PageBreak())
         story.append(Paragraph("Failed Backups (Appendix)", h2))
-        rows = [["ID", "NAS", "Job", "Ack", "Remark / Message"]]
+        rows = [["ID", "Time (WIB)", "NAS", "Job", "Ack", "Remark / Message"]]
         for l in failed_logs:
-            note = l.remark or l.message or "-"
+            note = (l.remark or l.message or "-").strip() or "-"
+            if len(note) > 500:
+                note = f"{note[:497]}..."
             rows.append([
-                str(l.id),
-                l.nas_id,
-                l.job_name[:25],
-                "Yes" if l.acknowledged else "No",
-                note[:55],
+                Paragraph(escape(str(l.id)), failed_cell_center),
+                Paragraph(
+                    format_local_datetime(l.created_at, "%Y-%m-%d<br/>%H:%M"),
+                    failed_cell_center,
+                ),
+                Paragraph(escape(l.nas_id), failed_cell),
+                Paragraph(escape(l.job_name), failed_cell),
+                Paragraph("Yes" if l.acknowledged else "No", failed_cell_center),
+                Paragraph(escape(note), failed_cell),
             ])
-        t = Table(rows, colWidths=[12 * mm, 28 * mm, 30 * mm, 14 * mm, 74 * mm])
+        t = Table(
+            rows,
+            colWidths=[9 * mm, 29 * mm, 27 * mm, 27 * mm, 12 * mm, 74 * mm],
+            repeatRows=1,
+        )
         t.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#7f1d1d")),
             ("TEXTCOLOR",  (0, 0), (-1, 0), colors.white),
             ("FONTSIZE",   (0, 0), (-1, -1), 8),
+            ("FONTNAME",   (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("ALIGN",      (0, 0), (-1, 0), "CENTER"),
+            ("ALIGN",      (0, 1), (1, -1), "CENTER"),
+            ("ALIGN",      (4, 1), (4, -1), "CENTER"),
+            ("VALIGN",     (0, 0), (-1, -1), "TOP"),
+            ("VALIGN",     (0, 0), (-1, 0), "MIDDLE"),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, COLOR_ROW_ALT]),
             ("GRID",       (0, 0), (-1, -1), 0.4, colors.grey),
+            ("LEFTPADDING",   (0, 0), (-1, -1), 3),
+            ("RIGHTPADDING",  (0, 0), (-1, -1), 3),
             ("TOPPADDING",    (0, 0), (-1, -1), 4),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
         ]))

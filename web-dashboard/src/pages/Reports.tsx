@@ -41,11 +41,14 @@ const generateReportSchema = z.object({
   path: ["date_to"],
 });
 
+const REPORT_RENDER_BATCH_SIZE = 20;
+
 export function Reports() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [searchFilter, setSearchFilter] = useState("");
+  const [visibleReportCount, setVisibleReportCount] = useState(REPORT_RENDER_BATCH_SIZE);
   const [error, setError] = useState("");
   const [selectedReports, setSelectedReports] = useState<Set<number>>(new Set());
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
@@ -175,6 +178,11 @@ export function Reports() {
   };
 
   const isAdmin = user?.role === "admin";
+  const filteredReports = (reports ?? []).filter((report) =>
+    !searchFilter || report.filename.toLowerCase().includes(searchFilter.toLowerCase())
+  );
+  const visibleReports = filteredReports.slice(0, visibleReportCount);
+  const hasMoreReports = visibleReports.length < filteredReports.length;
 
   return (
     <div className="space-y-6">
@@ -416,7 +424,10 @@ export function Reports() {
               <Input
                 placeholder="Search reports..."
                 value={searchFilter}
-                onChange={(e) => setSearchFilter(e.target.value)}
+                onChange={(e) => {
+                  setSearchFilter(e.target.value);
+                  setVisibleReportCount(REPORT_RENDER_BATCH_SIZE);
+                }}
               />
             </div>
           </div>
@@ -453,7 +464,7 @@ export function Reports() {
                   <TableRow>
                     <TableCell colSpan={isAdmin ? 7 : 6} className="h-24 text-center">Loading...</TableCell>
                   </TableRow>
-                ) : reports?.length === 0 ? (
+                ) : (reports?.length ?? 0) === 0 ? (
                   <TableRow>
                     <TableCell colSpan={isAdmin ? 7 : 6} className="h-32 text-center">
                       <div className="flex flex-col items-center justify-center text-muted-foreground">
@@ -462,25 +473,17 @@ export function Reports() {
                       </div>
                     </TableCell>
                   </TableRow>
-                ) : (() => {
-                  const filteredReports = reports?.filter((r) => 
-                    !searchFilter || r.filename.toLowerCase().includes(searchFilter.toLowerCase())
-                  );
-
-                  if (filteredReports?.length === 0) {
-                    return (
-                      <TableRow>
-                        <TableCell colSpan={isAdmin ? 7 : 6} className="h-32 text-center">
-                          <div className="flex flex-col items-center justify-center text-muted-foreground">
-                            <FileText className="h-8 w-8 mb-2 opacity-20" />
-                            <p>No reports found matching criteria.</p>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  }
-
-                  return filteredReports?.map((report) => (
+                ) : filteredReports.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={isAdmin ? 7 : 6} className="h-32 text-center">
+                      <div className="flex flex-col items-center justify-center text-muted-foreground">
+                        <FileText className="h-8 w-8 mb-2 opacity-20" />
+                        <p>No reports found matching criteria.</p>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  visibleReports.map((report) => (
                     <TableRow key={report.id}>
                       {isAdmin && (
                         <TableCell>
@@ -525,11 +528,21 @@ export function Reports() {
                         )}
                       </TableCell>
                     </TableRow>
-                  ));
-                })()}
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>
+          {hasMoreReports && (
+            <div className="flex justify-center pt-4">
+              <Button
+                variant="outline"
+                onClick={() => setVisibleReportCount((count) => count + REPORT_RENDER_BATCH_SIZE)}
+              >
+                Load more
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -1,5 +1,36 @@
 """Report endpoint tests."""
-from datetime import date
+from datetime import date, datetime, timezone
+from types import SimpleNamespace
+
+from app.services.pdf_service import build_report_pdf
+
+
+def test_failed_backup_table_handles_long_special_remark(tmp_path):
+    output = tmp_path / "failed-backup-report.pdf"
+    failed_log = SimpleNamespace(
+        id=42,
+        nas_id="synology-ds1522",
+        job_name="backup-finance-and-operational-documents",
+        status="FAILED",
+        acknowledged=True,
+        remark="Investigated <storage> & network path. " * 40,
+        message=None,
+        created_at=datetime(2026, 7, 16, 4, 8, tzinfo=timezone.utc),
+    )
+
+    build_report_pdf(
+        str(output),
+        date_from=date(2026, 7, 16),
+        date_to=date(2026, 7, 16),
+        nas_filter=None,
+        logs=[failed_log],
+        monitoring=[],
+        generated_by_name="Administrator",
+        activity_days=[],
+    )
+
+    assert output.exists()
+    assert output.stat().st_size > 0
 
 
 class TestReports:
