@@ -16,7 +16,7 @@ export function DashboardLayout() {
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar
-        userRole={user?.role || "service"}
+        userRole={user?.role ?? ""}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         onNavigate={handleNavigation}

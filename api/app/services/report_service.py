@@ -1,23 +1,20 @@
 """Report service — gather data, render PDF, persist metadata."""
 import os
-from datetime import date, datetime, timezone
+import re
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models.backup_log import BackupLog
+from app.models.backup_log import BackupLog, STATUS_FAILED, STATUS_SUCCESS
 from app.models.metric import SOURCE_CEPH, SOURCE_NAS
 from app.models.report import Report
 from app.models.user import User
 from app.services import monitor_service
 from app.services.pdf_service import build_report_pdf
-from app.timezone import local_date_range_bounds_utc
+from app.timezone import app_zone, local_date_range_bounds_utc
 
-
-from datetime import timedelta
-from app.timezone import app_zone
-from app.models.backup_log import STATUS_SUCCESS, STATUS_FAILED
 
 def _build_activity_days_from_logs(logs: list, date_from: date, date_to: date) -> list[dict]:
     """Build per-day success/failed counts for bar chart using the local timezone."""
@@ -87,7 +84,6 @@ def generate_report(
         if snap:
             monitoring.append(snap)
 
-    import re
     os.makedirs(settings.reports_dir, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     if custom_name:
